@@ -1,7 +1,8 @@
-import re
 import abc
+import re
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Any, Optional
+
 
 class Argument(abc.ABC):
     """

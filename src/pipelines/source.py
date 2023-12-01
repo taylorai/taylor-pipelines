@@ -1,11 +1,13 @@
-import os
-from dataclasses import dataclass, field
 import abc
+import os
 from collections.abc import Iterator
-from typing import Literal, Any
+from dataclasses import dataclass, field
+from typing import Any, Literal
+
 import boto3
 import lz4.frame as lz4
 import zstandard as zstd
+
 
 @dataclass
 class File:

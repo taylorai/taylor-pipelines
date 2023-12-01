@@ -1,7 +1,9 @@
 import abc
 import json
-from .source import File
 from collections.abc import Iterator
+
+from .source import File
+
 
 class Parser(abc.ABC):
     """
