@@ -1,8 +1,9 @@
 import abc
-import json
-from dataclasses import dataclass
 import functools
+import json
 from collections.abc import Callable
+from dataclasses import dataclass
+
 
 class Filter(abc.ABC):
     """

@@ -1,1 +1,5 @@
 rich
+ruff
+boto3
+zstandard
+lz4

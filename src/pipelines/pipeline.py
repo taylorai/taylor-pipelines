@@ -1,10 +1,11 @@
-from typing import Union
 from dataclasses import dataclass, field
-import itertools
+from typing import Union
+
 from .argument import Argument
-from .source import Source
 from .parse import Parser
-from .process import Map, Filter, Sink
+from .process import Filter, Map, Sink
+from .source import Source
+
 
 @dataclass
 class Pipeline:
