@@ -3,6 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# environment
+.env
+
+# data and local scripts
+data/*
+local/*
+
 # C extensions
 *.so
 
