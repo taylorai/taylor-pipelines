@@ -2,7 +2,7 @@
 requires = ["setuptools", "wheel"]
 
 [project]
-name = "taylor-pipelines"
+name = "taylor_pipelines"
 version="0.0.1"
 authors = [
     {name = "Benjamin Anderson", email = "ben@trytaylor.ai"},
