@@ -14,27 +14,31 @@ class File:
     """
     A file is a file-like object that can be read.
     """
+
     filename: str
     content: Any
+
 
 class Source(abc.ABC):
     """
     A data source defines a set of data that can be streamed.
     It should be able to return an iterator.
     """
+
     @property
     def batched(self) -> bool:
         """
         Returns True if the source is batched.
         """
         raise NotImplementedError
-    
+
     def iterator(self) -> Iterator[Any]:
         """
         Returns an iterator.
         """
         raise NotImplementedError
-    
+
+
 @dataclass
 class S3(Source):
     bucket: str
@@ -48,8 +52,11 @@ class S3(Source):
         self.s3_client = boto3.client(
             "s3",
             aws_access_key_id=self.access_key_id,
-            aws_secret_access_key=self.secret_access_key
+            aws_secret_access_key=self.secret_access_key,
         )
+
+    def __str__(self):
+        return f"🪣 [S3 Source]: s3://{self.bucket}/{self.prefix}"
 
     def decompress(self, obj: Any) -> Any:
         """
@@ -63,7 +70,7 @@ class S3(Source):
             return obj
         else:
             raise ValueError(f"Unknown compression {self.compression}")
-    
+
     def iterator(self) -> Iterator[Any]:
         """
         Returns an iterator over S3 objects.
@@ -72,10 +79,11 @@ class S3(Source):
         pages = paginator.paginate(Bucket=self.bucket, Prefix=self.prefix)
         for page in pages:
             for obj in page["Contents"]:
-                response = self.s3_client.get_object(Bucket=self.bucket, Key=obj['Key'])
-                data = response['Body'].read()
+                response = self.s3_client.get_object(Bucket=self.bucket, Key=obj["Key"])
+                data = response["Body"].read()
                 decompressed_data = self.decompress(data)
-                yield File(filename=obj['Key'], content=decompressed_data)
+                yield File(filename=obj["Key"], content=decompressed_data)
+
 
 class LocalDirectory(Source):
     directory: str
@@ -96,7 +104,7 @@ class LocalDirectory(Source):
             return obj
         else:
             raise ValueError(f"Unknown compression {self.compression}")
-    
+
     def iterator(self) -> Iterator[Any]:
         """
         Returns an iterator over files in a directory.

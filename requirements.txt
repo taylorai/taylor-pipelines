@@ -3,3 +3,5 @@ ruff
 boto3
 zstandard
 lz4
+tiktoken
+pandas
