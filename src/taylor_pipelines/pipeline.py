@@ -94,6 +94,20 @@ class Pipeline:
             result += f"{transform}"
         return result
     
+    def get_arguments(self):
+        """
+        Returns a list of all arguments for the pipeline.
+        """
+        transforms = {}
+        for transform in self.transforms:
+            arguments = []
+            for argument in transform.arguments.values():
+                arguments.append(argument.to_json())
+
+            transforms[transform.name] = arguments
+
+        return transforms
+
     def print_metrics(self):
         result = "== Metrics ==\n"
         print("Pipeline:", self.metrics)

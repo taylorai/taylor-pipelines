@@ -47,6 +47,13 @@ class Argument(abc.ABC):
         Validates a value for the argument.
         """
         raise NotImplementedError
+    
+    @abc.abstractmethod
+    def to_json(self) -> dict:
+        """
+        Returns a JSON representation of the argument.
+        """
+        raise NotImplementedError
 
 
 class MultipleChoiceArgument(Argument):
@@ -74,6 +81,20 @@ class MultipleChoiceArgument(Argument):
         Validates a value for the argument.
         """
         return self.value in self.choices
+    
+    def to_json(self) -> dict:
+        """
+        Returns a JSON representation of the argument.
+        """
+        return {
+            "name": self.name,
+            "description": self.description,
+            "required": self.required,
+            "default": self.default,
+            "value": self.value,
+            "choices": self.choices,
+            "type": "MultipleChoiceArgument",
+        }
 
 
 # class StringArgument(Argument):
@@ -123,6 +144,21 @@ class IntegerArgument(Argument):
         if self.max_value is not None and self.value > self.max_value:
             return False
         return True
+    
+    def to_json(self) -> dict:
+        """
+        Returns a JSON representation of the argument.
+        """
+        return {
+            "name": self.name,
+            "description": self.description,
+            "required": self.required,
+            "default": self.default,
+            "value": self.value,
+            "min_value": self.min_value,
+            "max_value": self.max_value,
+            "type": "IntegerArgument",
+        }
 
 
 # @dataclass
