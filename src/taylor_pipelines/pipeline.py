@@ -98,15 +98,13 @@ class Pipeline:
         """
         Returns a list of all arguments for the pipeline.
         """
-        transforms = {}
+        pipeline_args = {"transforms": []}
         for transform in self.transforms:
-            arguments = []
+            transform_spec = {"name": transform.name, "optional": transform.optional, "arguments": []}
             for argument in transform.arguments.values():
-                arguments.append(argument.to_json())
+                transform_spec["arguments"].append(argument.to_json())
 
-            transforms[transform.name] = arguments
-
-        return transforms
+        return pipeline_args
 
     def print_metrics(self):
         result = "== Metrics ==\n"
