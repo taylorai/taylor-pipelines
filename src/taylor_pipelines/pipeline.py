@@ -101,6 +101,12 @@ class Pipeline:
         pipeline_args = {"transforms": []}
         for transform in self.transforms:
             transform_spec = {"name": transform.name, "optional": transform.optional, "arguments": []}
+            if isinstance(transform, Filter):
+                transform_spec["type"] = "filter"
+            elif isinstance(transform, Map):
+                transform_spec["type"] = "map"
+            elif isinstance(transform, Sink):
+                transform_spec["type"] = "sink"
             for argument in transform.arguments.values():
                 transform_spec["arguments"].append(argument.to_json())
 
