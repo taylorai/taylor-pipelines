@@ -47,7 +47,7 @@ class Argument(abc.ABC):
         Validates a value for the argument.
         """
         raise NotImplementedError
-    
+
     @abc.abstractmethod
     def to_json(self) -> dict:
         """
@@ -81,7 +81,7 @@ class MultipleChoiceArgument(Argument):
         Validates a value for the argument.
         """
         return self.value in self.choices
-    
+
     def to_json(self) -> dict:
         """
         Returns a JSON representation of the argument.
@@ -144,7 +144,7 @@ class IntegerArgument(Argument):
         if self.max_value is not None and self.value > self.max_value:
             return False
         return True
-    
+
     def to_json(self) -> dict:
         """
         Returns a JSON representation of the argument.

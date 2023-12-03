@@ -49,7 +49,7 @@ class Pipeline:
         for transform in self.transforms:
             batch = transform(batch)
         return batch
-    
+
     def remove_transform(self, transform_name: str):
         """
         Removes a transform from the pipeline.
@@ -93,14 +93,19 @@ class Pipeline:
                 result += "💾 "
             result += f"{transform}"
         return result
-    
+
     def get_arguments(self):
         """
         Returns a list of all arguments for the pipeline.
         """
         pipeline_args = {"transforms": []}
         for transform in self.transforms:
-            transform_spec = {"name": transform.name, "optional": transform.optional, "arguments": []}
+            transform_spec = {
+                "name": transform.name,
+                "description": transform.description,
+                "optional": transform.optional,
+                "arguments": [],
+            }
             if isinstance(transform, Filter):
                 transform_spec["type"] = "filter"
             elif isinstance(transform, Map):

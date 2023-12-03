@@ -2,6 +2,7 @@ import abc
 import functools
 import json
 from collections.abc import Callable
+from typing import Any, Optional
 
 from .argument import Argument
 
@@ -18,9 +19,14 @@ class Transform(abc.ABC):
     arguments: dict[str, Argument]
     optional: bool
     compiled: bool
+    description: Optional[str]
 
     def __init__(
-        self, name: str, arguments: list[Argument] = [], optional: bool = False
+        self,
+        name: str,
+        description: str = "",
+        arguments: list[Argument] = [],
+        optional: bool = False,
     ):
         self.name = name
         self.arguments = {argument.name: argument for argument in arguments}
@@ -90,9 +96,13 @@ class Filter(Transform):
     """
 
     def __init__(
-        self, name: str, arguments: list[Argument] = [], optional: bool = False
+        self,
+        name: str,
+        description: str = "",
+        arguments: list[Argument] = [],
+        optional: bool = False,
     ):
-        super().__init__(name, arguments, optional)
+        super().__init__(name, description, arguments, optional)
         self.metrics = {"items_in": 0, "items_out": 0}
 
     @abc.abstractmethod
@@ -121,18 +131,20 @@ class FunctionFilter(Filter):
 
     name: str
     predicate: Callable[[dict], bool]
+    description: Optional[str]
     arguments: dict[str, Argument]
 
     def __init__(
         self,
         name: str,
         predicate: Callable,
+        description: str = "",
         arguments: list[Argument] = [],
         optional: bool = False,
         **kwargs,
     ):
         self.predicate = functools.partial(predicate, **kwargs)
-        super().__init__(name, arguments, optional)
+        super().__init__(name, description, arguments, optional)
 
     def compile(self, **kwargs):
         """
@@ -159,12 +171,14 @@ class Map(Transform):
     """
 
     name: str
+    description: Optional[str]
     arguments: dict[str, Argument]
-
     compiled: bool
 
-    def __init__(self, name: str, arguments: list[Argument] = [], optional: bool = False):
-        super().__init__(name, arguments, optional)
+    def __init__(
+        self, name: str, description: str = "", arguments: list[Argument] = [], optional: bool = False
+    ):
+        super().__init__(name, description, arguments, optional)
 
     @abc.abstractmethod
     def map(self, batch: list[dict]) -> list[dict]:
@@ -185,13 +199,20 @@ class FunctionMap(Map):
 
     name: str
     function: Callable[[dict], dict]
+    description: str = ""
     arguments: dict[str, Argument]
 
     def __init__(
-        self, name: str, function: Callable, arguments: list[Argument] = [], optional: bool = False, **kwargs
+        self,
+        name: str,
+        function: Callable,
+        description: str = "",
+        arguments: list[Argument] = [],
+        optional: bool = False,
+        **kwargs,
     ):
         self.function = functools.partial(function, **kwargs)
-        super().__init__(name, arguments, optional)
+        super().__init__(name, description, arguments, optional)
 
     def compile(self, **kwargs):
         """
@@ -256,3 +277,30 @@ class JSONLSink(Sink):
         with open(self.output_file, "a") as f:
             for item in batch:
                 f.write(json.dumps(item) + "\n")
+
+# class BatchedS3JSONLSink(Sink):
+#     """
+#     A sink that writes large batches of data to an S3 bucket as JSONL.
+#     (Larger batches to avoid writing every little thing that comes in.)
+#     """
+
+#     output_file: str
+
+#     def __init__(self, name: str, output_file: str):
+#         super().__init__(name)
+#         self.output_file = output_file
+
+#     def compile(self, **kwargs):
+#         """
+#         Compiles the filter with provided public Arguments.
+#         """
+#         self.set_arguments(**kwargs)  # have to do this to check no extras provided
+#         self.compiled = True
+
+#     def write(self, batch: list[dict]):
+#         """
+#         Writes a batch of data.
+#         """
+#         with open(self.output_file, "a") as f:
+#             for item in batch:
+#                 f.write(json.dumps(item) + "\n")
