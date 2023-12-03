@@ -29,6 +29,7 @@ class Transform(abc.ABC):
         optional: bool = False,
     ):
         self.name = name
+        self.description = description
         self.arguments = {argument.name: argument for argument in arguments}
         self.optional = optional
         self.compiled = False
