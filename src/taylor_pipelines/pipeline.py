@@ -115,6 +115,8 @@ class Pipeline:
             for argument in transform.arguments.values():
                 transform_spec["arguments"].append(argument.to_json())
 
+            pipeline_args["transforms"].append(transform_spec)
+
         return pipeline_args
 
     def print_metrics(self):
