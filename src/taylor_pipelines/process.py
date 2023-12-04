@@ -1,3 +1,4 @@
+import os
 import abc
 import functools
 import json
@@ -236,10 +237,25 @@ class Sink(Transform):
     """
     A sink defines a way to write a stream of data.
     It also returns the data so it can be an intermediate
-    step in a pipeline.
+    step in a pipeline. output_directory can be used if the
+    sink writes to a file, in which case paths will be relative to
+    the output directory.
     """
-
     name: str
+    description: Optional[str]
+    output_directory: Optional[str]
+    arguments: dict[str, Argument]
+    optional: bool
+
+    def __init__(
+        self,
+        name: str,
+        description: str = "",
+        arguments: list[Argument] = [],
+        optional: bool = False,
+    ):
+        super().__init__(name, description, arguments, optional)
+        self.output_directory = None
 
     @abc.abstractmethod
     def write(self, batch: list[dict]):
@@ -257,11 +273,17 @@ class JSONLSink(Sink):
     """
     A sink that writes a batch of data to a JSONL file.
     """
-
     output_file: str
 
-    def __init__(self, name: str, output_file: str):
-        super().__init__(name)
+    def __init__(
+        self, 
+        name: str, 
+        output_file: str,
+        description: str = "",
+        arguments: list[Argument] = [],
+        optional: bool = False,
+    ):
+        super().__init__(name, description, arguments, optional)
         self.output_file = output_file
 
     def compile(self, **kwargs):
@@ -269,6 +291,10 @@ class JSONLSink(Sink):
         Compiles the filter with provided public Arguments.
         """
         self.set_arguments(**kwargs)  # have to do this to check no extras provided
+        # if output_directory is not None, prepend to output file and make sure the directories exist
+        if self.output_directory is not None:
+            self.output_file = os.path.join(self.output_directory, self.output_file)
+            os.makedirs(os.path.dirname(self.output_file), exist_ok=True)
         self.compiled = True
 
     def write(self, batch: list[dict]):

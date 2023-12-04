@@ -16,6 +16,7 @@ class Pipeline:
 
     source: Source
     parser: Parser
+    output_directory: str = None
     transforms: list[Transform] = field(default_factory=list)
     batch_size: int = 2
     arguments: list[Argument] = field(default_factory=list)
@@ -24,22 +25,25 @@ class Pipeline:
     )
     compiled: bool = False
 
+    def set_output_directory(self, output_directory: str):
+        """
+        Sets the output directory for the pipeline.
+        """
+        self.output_directory = output_directory
+        
     def compile_transforms(self, arguments: dict):
         # gotta be a cleaner way but for now arguments has a key for each transform,
         # and under that key is a dict of argument names to values for that transform
         # also want "global" arguments that apply to all transforms
         for transform in self.transforms:
+            if isinstance(transform, Sink):
+                if self.output_directory:
+                    transform.output_directory = self.output_directory
             if transform.name in arguments:
                 transform.compile(**arguments[transform.name])
-                # print(
-                #     "Compiled transform",
-                #     transform.name,
-                #     "with arguments",
-                #     arguments[transform.name],
-                # )
             else:
                 transform.compile()
-                # print("Compiled transform", transform.name, "with no arguments")
+            
         self.compiled = True
 
     def apply_transforms(self, batch: list[dict]) -> list[dict]:
@@ -77,6 +81,21 @@ class Pipeline:
                     batch = []
         if batch:
             yield self.apply_transforms(batch)
+
+    def run(self, arguments: dict = {}):
+        """
+        Runs the pipeline.
+        """
+        if not self.compiled:
+            self.compile_transforms(arguments)
+        print(self)
+        batches_processed = 0
+        for batch in self.iterator():
+            batches_processed += 1
+        print(f"Processed {batches_processed} batches.")
+
+        print("\n=== SUMMARY ===")
+        self.print_metrics()
 
     def __str__(self):
         result = "== Pipeline ==\n"
