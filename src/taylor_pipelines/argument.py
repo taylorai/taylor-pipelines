@@ -71,9 +71,10 @@ class MultipleChoiceArgument(Argument):
         description: str,
         choices: list[str],
         required: bool = True,
+        default: Optional[Any] = None,
         value: Optional[Any] = None,
     ):
-        super().__init__(name, description, required, value)
+        super().__init__(name, description, required, default, value)
         self.choices = choices
         self.type = str
 
@@ -98,21 +99,21 @@ class MultipleChoiceArgument(Argument):
         }
 
 
-class StringArgument(Argument):
-    """
-    A string argument is an argument that takes a string value.
-    """
-    valid_regex: str = None
+# class StringArgument(Argument):
+#     """
+#     A string argument is an argument that takes a string value.
+#     """
+#     valid_regex: str = None
 
-    def validate(self, value: Any) -> bool:
-        """
-        Validates a value for the argument.
-        """
-        if not isinstance(value, str):
-            return False
-        if self.valid_regex is not None:
-            return re.match(self.valid_regex, value) is not None
-        return True
+#     def validate(self, value: Any) -> bool:
+#         """
+#         Validates a value for the argument.
+#         """
+#         if not isinstance(value, str):
+#             return False
+#         if self.valid_regex is not None:
+#             return re.match(self.valid_regex, value) is not None
+#         return True
 
 
 class IntegerArgument(Argument):
@@ -125,11 +126,12 @@ class IntegerArgument(Argument):
         name: str,
         description: str,
         required: bool = True,
+        default: Optional[Any] = None,
         value: Optional[Any] = None,
         min_value: int = None,
         max_value: int = None,
     ):
-        super().__init__(name, description, required, value)
+        super().__init__(name, description, required, default, value)
         self.min_value = min_value
         self.max_value = max_value
         self.type = int
