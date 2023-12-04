@@ -37,7 +37,8 @@ class Pipeline:
         # also want "global" arguments that apply to all transforms
         if "__disabled__" in arguments:
             for transform_name in arguments["__disabled__"]:
-                self.remove_transform(transform_name)
+                if transform_name in self.transforms:
+                    self.remove_transform(transform_name)
         for transform in self.transforms:
             if isinstance(transform, Sink):
                 if self.output_directory:
@@ -63,6 +64,8 @@ class Pipeline:
         """
         for i, transform in enumerate(self.transforms):
             if transform.name == transform_name:
+                if not transform.optional:
+                    raise ValueError(f"Transform {transform_name} is not optional.")
                 del self.transforms[i]
                 return
         raise ValueError(f"Transform {transform_name} not found.")
