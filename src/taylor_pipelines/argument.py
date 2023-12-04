@@ -1,4 +1,5 @@
 import abc
+import re
 from typing import Any, Optional
 
 
@@ -97,21 +98,21 @@ class MultipleChoiceArgument(Argument):
         }
 
 
-# class StringArgument(Argument):
-#     """
-#     A string argument is an argument that takes a string value.
-#     """
-#     valid_regex: str = None
+class StringArgument(Argument):
+    """
+    A string argument is an argument that takes a string value.
+    """
+    valid_regex: str = None
 
-#     def validate(self, value: Any) -> bool:
-#         """
-#         Validates a value for the argument.
-#         """
-#         if not isinstance(value, str):
-#             return False
-#         if self.valid_regex is not None:
-#             return re.match(self.valid_regex, value) is not None
-#         return True
+    def validate(self, value: Any) -> bool:
+        """
+        Validates a value for the argument.
+        """
+        if not isinstance(value, str):
+            return False
+        if self.valid_regex is not None:
+            return re.match(self.valid_regex, value) is not None
+        return True
 
 
 class IntegerArgument(Argument):
