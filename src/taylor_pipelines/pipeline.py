@@ -36,9 +36,13 @@ class Pipeline:
         # and under that key is a dict of argument names to values for that transform
         # also want "global" arguments that apply to all transforms
         if "__disabled__" in arguments:
-            for transform_name in arguments["__disabled__"]:
-                if transform_name in self.transforms:
-                    self.remove_transform(transform_name)
+            for transform in self.transforms:
+                if transform.name in arguments["__disabled__"]:
+                    try:
+                        self.remove_transform(transform.name)
+                    except ValueError:
+                        print("Couldn't disable transform", transform.name)
+                
         for transform in self.transforms:
             if isinstance(transform, Sink):
                 if self.output_directory:
