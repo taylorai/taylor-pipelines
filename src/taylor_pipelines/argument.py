@@ -25,9 +25,7 @@ class Argument(abc.ABC):
         value: Optional[Any] = None,
     ):
         if required and default:
-            raise ValueError(
-                "An argument cannot be both required and have a default value."
-            )
+            print("Warning: required argument has default value. This should only be done as guidance for the user.")
         self.name = name
         self.description = description
         self.required = required
