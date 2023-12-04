@@ -30,11 +30,14 @@ class Pipeline:
         Sets the output directory for the pipeline.
         """
         self.output_directory = output_directory
-        
+
     def compile_transforms(self, arguments: dict):
         # gotta be a cleaner way but for now arguments has a key for each transform,
         # and under that key is a dict of argument names to values for that transform
         # also want "global" arguments that apply to all transforms
+        if "__disabled__" in arguments:
+            for transform_name in arguments["__disabled__"]:
+                self.remove_transform(transform_name)
         for transform in self.transforms:
             if isinstance(transform, Sink):
                 if self.output_directory:
