@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass, field
-from typing import Union
+from typing import Union, Optional
 
 import asyncio
 from .argument import Argument
@@ -16,7 +16,7 @@ class Pipeline:
     transforms to apply to each batch of data.
     """
 
-    source: Source
+    source: Optional[Source]
     parser: Parser
     output_directory: str = None
     transforms: list[Transform] = field(default_factory=list)

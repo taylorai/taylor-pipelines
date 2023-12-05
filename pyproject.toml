@@ -18,7 +18,8 @@ dependencies = [
     "boto3",
     "lz4",
     "zstandard",
-    "ruff"
+    "ruff",
+    "xxhash"
 ]
 
 [tool.ruff]

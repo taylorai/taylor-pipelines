@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import boto3
+import xxhash
 import lz4.frame as lz4
 import zstandard as zstd
 
@@ -39,6 +40,11 @@ class Source(abc.ABC):
         raise NotImplementedError
 
 
+def normalized_hash(item: str):
+    # Convert the item to a string and hash it
+    hash_value = xxhash.xxh64(item).intdigest()
+    return hash_value / float(2**64)
+
 @dataclass
 class S3(Source):
     bucket: str
@@ -46,6 +52,7 @@ class S3(Source):
     access_key_id: str
     secret_access_key: str
     compression: Literal["lz4", "zstd", None] = None
+    sample_rate: float = 1.0
     s3_client: boto3.client = field(init=False, default=None)
 
     def __post_init__(self):
@@ -79,6 +86,9 @@ class S3(Source):
         pages = paginator.paginate(Bucket=self.bucket, Prefix=self.prefix)
         for page in pages:
             for obj in page["Contents"]:
+                if self.sample_rate < 1.0:
+                    if normalized_hash(obj["Key"]) > self.sample_rate:
+                        continue
                 response = self.s3_client.get_object(Bucket=self.bucket, Key=obj["Key"])
                 data = response["Body"].read()
                 decompressed_data = self.decompress(data)
