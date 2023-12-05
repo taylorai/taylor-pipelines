@@ -1,5 +1,6 @@
 import abc
 import os
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional
@@ -54,6 +55,7 @@ class S3(Source):
     compression: Literal["lz4", "zstd", None] = None
     sample_rate: float = 1.0
     s3_client: boto3.client = field(init=False, default=None)
+    prefixes: list[str] = field(init=False, default_factory=list)
 
     def __post_init__(self):
         self.s3_client = boto3.client(
@@ -64,8 +66,24 @@ class S3(Source):
         if self.prefix is None:
             print("Prefix is None, so we're setting it to an empty string.")
             self.prefix = ""
-        elif self.prefix == "None":
-            print("Prefix is the literal string 'None' and that's what's causing your issues.")
+            self.prefixes = [""]
+        
+        # search for any glob characters: [], *, **, ?
+        elif re.search(r"[\*\?\[\]]", self.prefix):
+            print("Prefix contains glob characters, using s3fs to expand.")
+            import s3fs
+            fs = s3fs.S3FileSystem(
+                key=self.access_key_id,
+                secret=self.secret_access_key
+            )
+            glob_str = self.bucket.rstrip("/") + "/" + self.prefix.lstrip("/")
+            self.prefixes = fs.glob(glob_str)
+            print("Found", len(self.prefixes), "prefixes.")
+
+        else:
+            print("Prefix does not contain glob characters, so we're not expanding.")
+            self.prefixes = [self.prefix]
+
 
     def __str__(self):
         return f"🪣 [S3 Source]: s3://{self.bucket}{('/' + self.prefix) if self.prefix else ''}"
@@ -88,20 +106,21 @@ class S3(Source):
         Returns an iterator over S3 objects.
         """
         paginator = self.s3_client.get_paginator("list_objects_v2")
-        print("getting pages for bucket", self.bucket, "prefix", self.prefix)
-        pages = paginator.paginate(Bucket=self.bucket, Prefix=self.prefix)
-        for page in pages:
-            if not page["Contents"]:
-                print("No objects found.")
-                continue
-            for obj in page["Contents"]:
-                if self.sample_rate < 1.0:
-                    if normalized_hash(obj["Key"]) > self.sample_rate:
-                        continue
-                response = self.s3_client.get_object(Bucket=self.bucket, Key=obj["Key"])
-                data = response["Body"].read()
-                decompressed_data = self.decompress(data)
-                yield File(filename=obj["Key"], content=decompressed_data)
+        for prefix in self.prefixes:
+            print("getting pages for bucket", self.bucket, "prefix", prefix)
+            pages = paginator.paginate(Bucket=self.bucket, Prefix=prefix)
+            for page in pages:
+                if not page["Contents"]:
+                    print("No objects found.")
+                    continue
+                for obj in page["Contents"]:
+                    if self.sample_rate < 1.0:
+                        if normalized_hash(obj["Key"]) > self.sample_rate:
+                            continue
+                    response = self.s3_client.get_object(Bucket=self.bucket, Key=obj["Key"])
+                    data = response["Body"].read()
+                    decompressed_data = self.decompress(data)
+                    yield File(filename=obj["Key"], content=decompressed_data)
 
 
 class LocalDirectory(Source):
