@@ -1,10 +1,12 @@
+import os
 from dataclasses import dataclass, field
 from typing import Union
 
+import asyncio
 from .argument import Argument
 from .parse import Parser
 from .process import Transform, Filter, Map, Sink
-from .source import Source
+from .source import Source, S3
 
 
 @dataclass
@@ -30,6 +32,18 @@ class Pipeline:
         Sets the output directory for the pipeline.
         """
         self.output_directory = output_directory
+
+    def set_s3_data_source(self, bucket: str, prefix: str, compression: str = None):
+        """
+        Sets the data source to an S3 bucket.
+        """
+        self.source = S3(
+            bucket=bucket,
+            prefix=prefix,
+            access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            compression=compression,
+        )
 
     def compile_transforms(self, arguments: dict):
         # gotta be a cleaner way but for now arguments has a key for each transform,
@@ -61,6 +75,9 @@ class Pipeline:
         for transform in self.transforms:
             batch = transform(batch)
         return batch
+    
+    async def apply_transforms_async(self, batch: list[dict]) -> list[dict]:
+        return self.apply_transforms(batch)
 
     def remove_transform(self, transform_name: str):
         """
@@ -92,6 +109,25 @@ class Pipeline:
         if batch:
             yield self.apply_transforms(batch)
 
+    async def async_iterator(self):
+        """
+        Returns an async iterator over the parsed data.
+        (Probably much faster when reading from S3).
+        """
+        if not self.compiled:
+            raise ValueError("Pipeline not compiled.")
+        batch = []
+        async for file in self.source.async_iterator():
+            self.metrics["files_read"] += 1
+            async for item in self.parser.async_parse(file):
+                self.metrics["items_parsed"] += 1
+                batch.append(item)
+                if len(batch) == self.batch_size:
+                    yield self.apply_transforms(batch)
+                    batch = []
+        if batch:
+            yield self.apply_transforms(batch)
+
     def run(self, arguments: dict = {}):
         """
         Runs the pipeline.
@@ -104,6 +140,25 @@ class Pipeline:
             batches_processed += 1
         print(f"Processed {batches_processed} batches.")
 
+        self.print_metrics()
+
+    async def run_async(self, arguments: dict = {}):
+        """
+        Runs the pipeline asynchronously.
+        """
+        if not self.compiled:
+            self.compile_transforms(arguments)
+        print(self)
+        batches_processed = 0
+        tasks = []
+        async for batch in self.iterator():
+            task = asyncio.ensure_future(self.apply_transforms_async(batch))
+            tasks.append(task)
+        results = await asyncio.gather(*tasks)
+        for _ in results:
+            # Handle the processed batch
+            batches_processed += 1
+        print(f"Processed {batches_processed} batches.")
         self.print_metrics()
 
     def __str__(self):
