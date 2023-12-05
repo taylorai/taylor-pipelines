@@ -2,7 +2,7 @@ import abc
 import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 import boto3
 import xxhash
@@ -48,7 +48,7 @@ def normalized_hash(item: str):
 @dataclass
 class S3(Source):
     bucket: str
-    prefix: str
+    prefix: Optional[str]
     access_key_id: str
     secret_access_key: str
     compression: Literal["lz4", "zstd", None] = None
@@ -63,7 +63,7 @@ class S3(Source):
         )
 
     def __str__(self):
-        return f"🪣 [S3 Source]: s3://{self.bucket}/{self.prefix}"
+        return f"🪣 [S3 Source]: s3://{self.bucket}{('/' + self.prefix) if self.prefix else ''}"
 
     def decompress(self, obj: Any) -> Any:
         """
@@ -85,6 +85,9 @@ class S3(Source):
         paginator = self.s3_client.get_paginator("list_objects_v2")
         pages = paginator.paginate(Bucket=self.bucket, Prefix=self.prefix)
         for page in pages:
+            if not page["Contents"]:
+                print("No objects found.")
+                continue
             for obj in page["Contents"]:
                 if self.sample_rate < 1.0:
                     if normalized_hash(obj["Key"]) > self.sample_rate:
