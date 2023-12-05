@@ -33,15 +33,22 @@ class Pipeline:
         """
         self.output_directory = output_directory
 
-    def set_s3_data_source(self, bucket: str, prefix: str, compression: str = None):
+    def set_s3_data_source(
+        self, 
+        bucket: str, 
+        prefix: str, 
+        access_key_id: str,
+        secret_access_key: str,
+        compression: str = None
+    ):
         """
         Sets the data source to an S3 bucket.
         """
         self.source = S3(
             bucket=bucket,
             prefix=prefix,
-            access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-            secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            access_key_id=access_key_id,
+            secret_access_key=secret_access_key,
             compression=compression,
         )
 
