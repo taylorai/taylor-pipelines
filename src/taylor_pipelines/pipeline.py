@@ -39,6 +39,7 @@ class Pipeline:
         prefix: str, 
         access_key_id: str,
         secret_access_key: str,
+        sample_rate: float = 1.0,
         compression: str = None
     ):
         """
@@ -50,6 +51,7 @@ class Pipeline:
             access_key_id=access_key_id,
             secret_access_key=secret_access_key,
             compression=compression,
+            sample_rate=sample_rate
         )
 
     def compile_transforms(self, arguments: dict):
