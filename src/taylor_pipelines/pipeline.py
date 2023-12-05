@@ -104,7 +104,6 @@ class Pipeline:
             batches_processed += 1
         print(f"Processed {batches_processed} batches.")
 
-        print("\n=== SUMMARY ===")
         self.print_metrics()
 
     def __str__(self):
