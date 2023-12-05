@@ -61,6 +61,8 @@ class S3(Source):
             aws_access_key_id=self.access_key_id,
             aws_secret_access_key=self.secret_access_key,
         )
+        if self.prefix is None:
+            self.prefix = ""
 
     def __str__(self):
         return f"🪣 [S3 Source]: s3://{self.bucket}{('/' + self.prefix) if self.prefix else ''}"
