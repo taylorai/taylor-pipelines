@@ -83,6 +83,7 @@ class S3(Source):
         Returns an iterator over S3 objects.
         """
         paginator = self.s3_client.get_paginator("list_objects_v2")
+        print("getting pages for bucket", self.bucket, "prefix", self.prefix)
         pages = paginator.paginate(Bucket=self.bucket, Prefix=self.prefix)
         for page in pages:
             if not page["Contents"]:
