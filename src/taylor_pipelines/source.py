@@ -62,7 +62,10 @@ class S3(Source):
             aws_secret_access_key=self.secret_access_key,
         )
         if self.prefix is None:
+            print("Prefix is None, so we're setting it to an empty string.")
             self.prefix = ""
+        elif self.prefix == "None":
+            print("Prefix is the literal string 'None' and that's what's causing your issues.")
 
     def __str__(self):
         return f"🪣 [S3 Source]: s3://{self.bucket}{('/' + self.prefix) if self.prefix else ''}"
