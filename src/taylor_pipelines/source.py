@@ -77,7 +77,12 @@ class S3(Source):
                 secret=self.secret_access_key
             )
             glob_str = self.bucket.rstrip("/") + "/" + self.prefix.lstrip("/")
-            self.prefixes = fs.glob(glob_str)
+            prefixes = fs.glob(glob_str)
+            # if glob includes trailing /, add it to each prefix so they also only match directories
+            if glob_str.endswith("/"):
+                prefixes = [p + "/" for p in prefixes]
+            # split out the bucket name
+            self.prefixes = [p.split("/", 1)[1] for p in prefixes]
             print("Found", len(self.prefixes), "prefixes.")
 
         else:
@@ -114,6 +119,9 @@ class S3(Source):
                     print("No objects found.")
                     continue
                 for obj in page["Contents"]:
+                    # skip directories
+                    if obj["Key"].endswith("/"):
+                        continue
                     if self.sample_rate < 1.0:
                         if normalized_hash(obj["Key"]) > self.sample_rate:
                             continue
