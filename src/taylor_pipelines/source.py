@@ -1,6 +1,7 @@
 import abc
 import os
 import re
+import asyncio
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional
@@ -12,6 +13,13 @@ from aiobotocore.session import get_session, AioSession
 import xxhash
 import lz4.frame as lz4
 import zstandard as zstd
+
+# use logger with timestamp
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 
 @dataclass
@@ -40,9 +48,9 @@ class Source(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def __aiter__(self) -> AsyncIterator[Any]:
+    async def __aiter__(self) -> AsyncIterator[File]:
         """
-        Returns an async iterator.
+        Returns an async iterator over files.
         """
         raise NotImplementedError
 
@@ -62,6 +70,8 @@ class S3(Source):
     sample_rate: float = 1.0
     session: AioSession = field(init=False)
     prefixes: list[str] = field(init=False, default_factory=list)
+    queue: Optional[asyncio.Queue] = None
+    semaphore: Optional[asyncio.Semaphore] = None
 
     def __post_init__(self):
         self.session = get_session()
@@ -91,7 +101,6 @@ class S3(Source):
             print("Prefix does not contain glob characters, so we're not expanding.")
             self.prefixes = [self.prefix]
 
-
     def __str__(self):
         return f"🪣 [S3 Source]: s3://{self.bucket}{('/' + self.prefix) if self.prefix else ''}"
 
@@ -107,19 +116,30 @@ class S3(Source):
             return obj
         else:
             raise ValueError(f"Unknown compression {self.compression}")
-
+        
+    async def fetch_object(self, client, key):
+        async with self.semaphore:
+            response = await client.get_object(Bucket=self.bucket, Key=key)
+            async with response['Body'] as stream:
+                data = await stream.read()
+                decompressed_data = self.decompress(data)
+                await self.queue.put(File(filename=key, content=decompressed_data))
+            
     async def __aiter__(self) -> AsyncIterator[File]:
         """
         Returns an iterator over S3 objects.
         """
+        self.queue = asyncio.Queue()
+        self.semaphore = asyncio.Semaphore(100) # limit to 100 concurrent requests
         async with self.session.create_client(
             "s3",
             aws_access_key_id=self.access_key_id,
             aws_secret_access_key=self.secret_access_key,
         ) as client:
+            tasks = []
+            logger.info("Initializing tasks to fetch objects from S3.")
             paginator = client.get_paginator("list_objects_v2")
             for prefix in self.prefixes:
-                print("getting pages for bucket", self.bucket, "prefix", prefix)
                 async for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
                     if not page["Contents"]:
                         print("No objects found.")
@@ -131,11 +151,28 @@ class S3(Source):
                         if self.sample_rate < 1.0:
                             if normalized_hash(obj["Key"]) > self.sample_rate:
                                 continue
-                        response = await client.get_object(Bucket=self.bucket, Key=obj["Key"])
-                        async with response['Body'] as stream:
-                            data = await stream.read()
-                            decompressed_data = self.decompress(data)
-                            yield File(filename=obj["Key"], content=decompressed_data)
+                        tasks.append(
+                            asyncio.create_task(self.fetch_object(client, obj["Key"]))
+                        )
+            logger.info("Running tasks.")
+            producer = asyncio.gather(*tasks)
+
+            def done_callback(future):
+                logger.info("Done streaming files from S3.")
+                self.queue.put_nowait(None)
+            producer.add_done_callback(done_callback)
+
+            while True:
+                file = await self.queue.get()
+                if file is None:
+                    self.queue.task_done()
+                    break
+                yield file
+                self.queue.task_done()
+            
+            await producer
+            await self.queue.join()
+
 
 
 ## NEED TO MAKE THIS ASYNC TO FIT WITH THE API NOW
