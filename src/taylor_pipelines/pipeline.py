@@ -20,12 +20,13 @@ class Pipeline:
     parser: Parser
     output_directory: str = None
     transforms: list[Transform] = field(default_factory=list)
-    batch_size: int = 2
+    batch_size: int = 25
     arguments: list[Argument] = field(default_factory=list)
     metrics: dict[str, Union[int, float]] = field(
-        default_factory=lambda: {"files_read": 0, "items_parsed": 0}
+        default_factory=lambda: {"files_read": 0, "items_parsed": 0, "batches_processed": 0}
     )
     compiled: bool = False
+    queue: Optional[asyncio.Queue] = None
 
     def set_output_directory(self, output_directory: str):
         """
@@ -77,17 +78,6 @@ class Pipeline:
             
         self.compiled = True
 
-    def apply_transforms(self, batch: list[dict]) -> list[dict]:
-        """
-        Applies the transforms to a batch of data.
-        """
-        for transform in self.transforms:
-            batch = transform(batch)
-        return batch
-    
-    async def apply_transforms_async(self, batch: list[dict]) -> list[dict]:
-        return self.apply_transforms(batch)
-
     def remove_transform(self, transform_name: str):
         """
         Removes a transform from the pipeline.
@@ -100,74 +90,59 @@ class Pipeline:
                 return
         raise ValueError(f"Transform {transform_name} not found.")
 
-    def iterator(self):
+    def apply_transforms(self, batch: list[dict]) -> list[dict]:
         """
-        Returns an iterator over the parsed data.
+        Applies the transforms to a batch of data.
         """
-        if not self.compiled:
-            raise ValueError("Pipeline not compiled.")
+        for transform in self.transforms:
+            batch = transform(batch)
+        return batch
+
+    async def stream_batches(self):
         batch = []
-        for file in self.source.iterator():
+        async for file in self.source:
             self.metrics["files_read"] += 1
             for item in self.parser.parse(file):
                 self.metrics["items_parsed"] += 1
                 batch.append(item)
                 if len(batch) == self.batch_size:
-                    yield self.apply_transforms(batch)
+                    await self.queue.put(batch)
+                    # print("put batch")
                     batch = []
         if batch:
-            yield self.apply_transforms(batch)
+            await self.queue.put(batch)
+            # print("put batch")
+        await self.queue.put(None)
+        # print("put None")
 
-    async def async_iterator(self):
+    async def process_batches(self):
+        while True:
+            batch = await self.queue.get()
+            if batch is None:
+                # print("got None")
+                self.queue.task_done()
+                break
+            # print("got batch")
+            self.apply_transforms(batch)
+            await asyncio.sleep(0) # allow other tasks to run so the doesn't empty
+            self.metrics["batches_processed"] += 1
+            self.queue.task_done()
+
+    async def run(self, arguments: dict = {}):
         """
         Returns an async iterator over the parsed data.
         (Probably much faster when reading from S3).
         """
-        if not self.compiled:
-            raise ValueError("Pipeline not compiled.")
-        batch = []
-        async for file in self.source.async_iterator():
-            self.metrics["files_read"] += 1
-            async for item in self.parser.async_parse(file):
-                self.metrics["items_parsed"] += 1
-                batch.append(item)
-                if len(batch) == self.batch_size:
-                    yield self.apply_transforms(batch)
-                    batch = []
-        if batch:
-            yield self.apply_transforms(batch)
-
-    def run(self, arguments: dict = {}):
-        """
-        Runs the pipeline.
-        """
+        print(self)
         if not self.compiled:
             self.compile_transforms(arguments)
-        print(self)
-        batches_processed = 0
-        for batch in self.iterator():
-            batches_processed += 1
-        print(f"Processed {batches_processed} batches.")
+        self.queue = asyncio.Queue()
+        producer = asyncio.create_task(self.stream_batches())
+        consumer = asyncio.create_task(self.process_batches())
+        await asyncio.gather(producer, consumer)
+        await self.queue.join()
 
-        self.print_metrics()
-
-    async def run_async(self, arguments: dict = {}):
-        """
-        Runs the pipeline asynchronously.
-        """
-        if not self.compiled:
-            self.compile_transforms(arguments)
-        print(self)
-        batches_processed = 0
-        tasks = []
-        async for batch in self.iterator():
-            task = asyncio.ensure_future(self.apply_transforms_async(batch))
-            tasks.append(task)
-        results = await asyncio.gather(*tasks)
-        for _ in results:
-            # Handle the processed batch
-            batches_processed += 1
-        print(f"Processed {batches_processed} batches.")
+        print(f"Processed {self.metrics['batches_processed']} batches.")
         self.print_metrics()
 
     def __str__(self):
