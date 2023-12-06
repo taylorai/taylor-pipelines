@@ -116,7 +116,22 @@ class S3(Source):
             return obj
         else:
             raise ValueError(f"Unknown compression {self.compression}")
-        
+
+    async def paginate_and_fetch(self, client, prefix):
+        paginator = client.get_paginator("list_objects_v2")
+        async for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+            if not page["Contents"]:
+                print("No objects found.")
+                continue
+            for obj in page["Contents"]:
+                # skip directories
+                if obj["Key"].endswith("/"):
+                    continue
+                if self.sample_rate < 1.0:
+                    if normalized_hash(obj["Key"]) > self.sample_rate:
+                        continue
+                await self.fetch_object(client, obj["Key"])
+
     async def fetch_object(self, client, key):
         async with self.semaphore:
             response = await client.get_object(Bucket=self.bucket, Key=key)
@@ -136,25 +151,7 @@ class S3(Source):
             aws_access_key_id=self.access_key_id,
             aws_secret_access_key=self.secret_access_key,
         ) as client:
-            tasks = []
-            logger.info("Initializing tasks to fetch objects from S3.")
-            paginator = client.get_paginator("list_objects_v2")
-            for prefix in self.prefixes:
-                async for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
-                    if not page["Contents"]:
-                        print("No objects found.")
-                        continue
-                    for obj in page["Contents"]:
-                        # skip directories
-                        if obj["Key"].endswith("/"):
-                            continue
-                        if self.sample_rate < 1.0:
-                            if normalized_hash(obj["Key"]) > self.sample_rate:
-                                continue
-                        tasks.append(
-                            asyncio.create_task(self.fetch_object(client, obj["Key"]))
-                        )
-            logger.info("Running tasks.")
+            tasks = [asyncio.create_task(self.paginate_and_fetch(client, prefix)) for prefix in self.prefixes]
             producer = asyncio.gather(*tasks)
 
             def done_callback(future):
