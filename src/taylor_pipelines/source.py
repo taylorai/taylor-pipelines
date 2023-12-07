@@ -145,7 +145,7 @@ class S3(Source):
         Returns an iterator over S3 objects.
         """
         self.queue = asyncio.Queue()
-        self.semaphore = asyncio.Semaphore(100) # limit to 100 concurrent requests
+        self.semaphore = asyncio.Semaphore(500) # limit to 100 concurrent requests
         async with self.session.create_client(
             "s3",
             aws_access_key_id=self.access_key_id,
