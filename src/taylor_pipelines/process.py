@@ -112,15 +112,15 @@ class Filter(Transform):
         self.metrics = {"items_in": 0, "items_out": 0}
 
     @abc.abstractmethod
-    def filter(self, batch: list[dict]) -> list[dict]:
+    async def filter(self, batch: list[dict]) -> list[dict]:
         """
         Filters a batch of data.
         """
         raise NotImplementedError
 
-    def __call__(self, batch: list[dict]) -> list[dict]:
+    async def __call__(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
         self.metrics["items_in"] += len(batch)
-        filtered = self.filter(batch)
+        filtered = await self.filter(batch)
         self.metrics["items_out"] += len(filtered)
         return filtered
 
@@ -162,7 +162,7 @@ class FunctionFilter(Filter):
         self.predicate = functools.partial(self.predicate, **self.args_to_kwargs())
         self.compiled = True
 
-    def filter(self, batch: list[dict]) -> list[dict]:
+    async def filter(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
         """
         Filters a batch of data.
         """
@@ -187,14 +187,14 @@ class Map(Transform):
         super().__init__(name, description, arguments, optional)
 
     @abc.abstractmethod
-    def map(self, batch: list[dict]) -> list[dict]:
+    async def map(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
         """
         Maps a batch of data.
         """
         raise NotImplementedError
 
-    def __call__(self, batch: list[dict]) -> list[dict]:
-        return self.map(batch)
+    async def __call__(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
+        return await self.map(batch)
 
 
 class FunctionMap(Map):
@@ -273,7 +273,7 @@ class Sink(Transform):
         """
         raise NotImplementedError
 
-    async def __call__(self, batch: list[dict]):
+    async def __call__(self, batch: list[dict], executor: concurrent.futures.Executor = None):
         await self.write(batch)
         return batch
 
