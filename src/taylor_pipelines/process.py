@@ -1,4 +1,5 @@
 import os
+import pickle
 import asyncio
 import aiofiles
 import concurrent.futures
@@ -139,6 +140,7 @@ class FunctionFilter(Filter):
     predicate: Callable[[dict], bool]
     description: Optional[str]
     arguments: dict[str, Argument]
+    can_run_in_pool: bool
 
     def __init__(
         self,
@@ -160,6 +162,13 @@ class FunctionFilter(Filter):
         self.set_arguments(**kwargs)
         # set the predicate with the compiled arguments
         self.predicate = functools.partial(self.predicate, **self.args_to_kwargs())
+        # check once at compilation time that the predicate can be pickled
+        try:
+            pickle.dumps(self.predicate)
+            self.can_run_in_pool = True
+        except pickle.PicklingError:
+            print(f"Warning: transform {self.name} cannot be run in a process pool.")
+            self.can_run_in_pool = False
         self.compiled = True
 
     async def filter(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
@@ -168,7 +177,7 @@ class FunctionFilter(Filter):
         """
         if not self.compiled:
             raise ValueError("Filter not compiled.")
-        if executor is not None:
+        if executor is not None and self.can_run_in_pool:
             loop = asyncio.get_event_loop()
             tasks = [
                 loop.run_in_executor(executor, self.predicate, item) for item in batch
@@ -214,6 +223,7 @@ class FunctionMap(Map):
     function: Callable[[dict], dict]
     description: str = ""
     arguments: dict[str, Argument]
+    can_run_in_pool: bool
 
     def __init__(
         self,
@@ -233,6 +243,13 @@ class FunctionMap(Map):
         """
         self.set_arguments(**kwargs)
         self.function = functools.partial(self.function, **self.args_to_kwargs())
+        # check once at compilation time that the function can be pickled
+        try:
+            pickle.dumps(self.function)
+            self.can_run_in_pool = True
+        except pickle.PicklingError:
+            print(f"Warning: transform {self.name} cannot be run in a process pool.")
+            self.can_run_in_pool = False
         self.compiled = True
 
     async def map(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
@@ -241,7 +258,7 @@ class FunctionMap(Map):
         """
         if not self.compiled:
             raise ValueError("Map not compiled.")
-        if executor is not None:
+        if executor is not None and self.can_run_in_pool:
             loop = asyncio.get_event_loop()
             tasks = [
                 loop.run_in_executor(executor, self.function, item) for item in batch
