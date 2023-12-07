@@ -1,5 +1,8 @@
 import os
+import asyncio
 import aiofiles
+import concurrent.futures
+
 import abc
 import functools
 import json
@@ -225,12 +228,17 @@ class FunctionMap(Map):
         self.function = functools.partial(self.function, **self.args_to_kwargs())
         self.compiled = True
 
-    def map(self, batch: list[dict]) -> list[dict]:
+    async def map(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
         """
         Maps a batch of data.
         """
         if not self.compiled:
             raise ValueError("Map not compiled.")
+        # if executor is not None:
+        #     loop = asyncio.get_event_loop()
+        #     tasks = [
+        #         loop.run_in_executor(executor, self.function, item) for item in batch
+        #     ]
         return list(map(self.function, batch))
 
 
@@ -266,7 +274,7 @@ class Sink(Transform):
         raise NotImplementedError
 
     async def __call__(self, batch: list[dict]):
-        self.write(batch)
+        await self.write(batch)
         return batch
 
 
@@ -302,6 +310,6 @@ class JSONLSink(Sink):
         """
         Writes a batch of data.
         """
-        async with open(self.output_file, "a") as f:
+        async with aiofiles.open(self.output_file, "a") as f:
             for item in batch:
                 await f.write(json.dumps(item) + "\n")
