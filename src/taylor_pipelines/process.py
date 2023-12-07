@@ -1,5 +1,8 @@
 import os
+import asyncio
 import aiofiles
+import concurrent.futures
+
 import abc
 import functools
 import json
@@ -109,15 +112,15 @@ class Filter(Transform):
         self.metrics = {"items_in": 0, "items_out": 0}
 
     @abc.abstractmethod
-    def filter(self, batch: list[dict]) -> list[dict]:
+    async def filter(self, batch: list[dict]) -> list[dict]:
         """
         Filters a batch of data.
         """
         raise NotImplementedError
 
-    def __call__(self, batch: list[dict]) -> list[dict]:
+    async def __call__(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
         self.metrics["items_in"] += len(batch)
-        filtered = self.filter(batch)
+        filtered = await self.filter(batch)
         self.metrics["items_out"] += len(filtered)
         return filtered
 
@@ -159,7 +162,7 @@ class FunctionFilter(Filter):
         self.predicate = functools.partial(self.predicate, **self.args_to_kwargs())
         self.compiled = True
 
-    def filter(self, batch: list[dict]) -> list[dict]:
+    async def filter(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
         """
         Filters a batch of data.
         """
@@ -184,14 +187,14 @@ class Map(Transform):
         super().__init__(name, description, arguments, optional)
 
     @abc.abstractmethod
-    def map(self, batch: list[dict]) -> list[dict]:
+    async def map(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
         """
         Maps a batch of data.
         """
         raise NotImplementedError
 
-    def __call__(self, batch: list[dict]) -> list[dict]:
-        return self.map(batch)
+    async def __call__(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
+        return await self.map(batch)
 
 
 class FunctionMap(Map):
@@ -225,12 +228,17 @@ class FunctionMap(Map):
         self.function = functools.partial(self.function, **self.args_to_kwargs())
         self.compiled = True
 
-    def map(self, batch: list[dict]) -> list[dict]:
+    async def map(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
         """
         Maps a batch of data.
         """
         if not self.compiled:
             raise ValueError("Map not compiled.")
+        # if executor is not None:
+        #     loop = asyncio.get_event_loop()
+        #     tasks = [
+        #         loop.run_in_executor(executor, self.function, item) for item in batch
+        #     ]
         return list(map(self.function, batch))
 
 
@@ -265,8 +273,8 @@ class Sink(Transform):
         """
         raise NotImplementedError
 
-    async def __call__(self, batch: list[dict]):
-        self.write(batch)
+    async def __call__(self, batch: list[dict], executor: concurrent.futures.Executor = None):
+        await self.write(batch)
         return batch
 
 
@@ -302,6 +310,6 @@ class JSONLSink(Sink):
         """
         Writes a batch of data.
         """
-        async with open(self.output_file, "a") as f:
+        async with aiofiles.open(self.output_file, "a") as f:
             for item in batch:
                 await f.write(json.dumps(item) + "\n")

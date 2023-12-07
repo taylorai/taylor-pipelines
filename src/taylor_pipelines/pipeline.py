@@ -1,4 +1,6 @@
 import os
+import concurrent.futures
+import multiprocessing as mp
 from dataclasses import dataclass, field
 from typing import Union, Optional
 
@@ -90,16 +92,17 @@ class Pipeline:
                 return
         raise ValueError(f"Transform {transform_name} not found.")
 
-    async def apply_transforms(self, batch: list[dict]) -> list[dict]:
+    async def apply_transforms(
+        self, 
+        batch: list[dict],
+        executor: concurrent.futures.Executor = None
+    ) -> list[dict]:
         """
         Applies the transforms to a batch of data.
         """
         for transform in self.transforms:
             # file I/O uses aiofiles, which is async, so we need to await it
-            if isinstance(transform, Sink):
-                await transform(batch)
-            else:
-                batch = transform(batch)
+            batch = await transform(batch, executor=executor)
         return batch
 
     async def stream_batches(self):
@@ -120,17 +123,18 @@ class Pipeline:
         # print("put None")
 
     async def process_batches(self):
-        while True:
-            batch = await self.queue.get()
-            if batch is None:
-                # print("got None")
+        with concurrent.futures.ProcessPoolExecutor(max_workers=mp.cpu_count()) as pool:
+            while True:
+                batch = await self.queue.get()
+                if batch is None:
+                    # print("got None")
+                    self.queue.task_done()
+                    break
+                # print("got batch")
+                await self.apply_transforms(batch, executor=pool)
+                # await asyncio.sleep(0) # allow other tasks to run so the doesn't empty
+                self.metrics["batches_processed"] += 1
                 self.queue.task_done()
-                break
-            # print("got batch")
-            await self.apply_transforms(batch)
-            # await asyncio.sleep(0) # allow other tasks to run so the doesn't empty
-            self.metrics["batches_processed"] += 1
-            self.queue.task_done()
 
     async def run(self, arguments: dict = {}):
         """
