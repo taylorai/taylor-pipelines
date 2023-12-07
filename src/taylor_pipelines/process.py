@@ -120,7 +120,7 @@ class Filter(Transform):
 
     async def __call__(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
         self.metrics["items_in"] += len(batch)
-        filtered = await self.filter(batch)
+        filtered = await self.filter(batch, executor=executor)
         self.metrics["items_out"] += len(filtered)
         return filtered
 
@@ -168,7 +168,14 @@ class FunctionFilter(Filter):
         """
         if not self.compiled:
             raise ValueError("Filter not compiled.")
-        return list(filter(self.predicate, batch))
+        if executor is not None:
+            loop = asyncio.get_event_loop()
+            tasks = [
+                loop.run_in_executor(executor, self.predicate, item) for item in batch
+            ]
+            return [item for item, keep in zip(batch, await asyncio.gather(*tasks)) if keep]
+        else:
+            return list(filter(self.predicate, batch))
 
 
 class Map(Transform):
@@ -194,7 +201,7 @@ class Map(Transform):
         raise NotImplementedError
 
     async def __call__(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
-        return await self.map(batch)
+        return await self.map(batch, executor=executor)
 
 
 class FunctionMap(Map):
@@ -234,12 +241,14 @@ class FunctionMap(Map):
         """
         if not self.compiled:
             raise ValueError("Map not compiled.")
-        # if executor is not None:
-        #     loop = asyncio.get_event_loop()
-        #     tasks = [
-        #         loop.run_in_executor(executor, self.function, item) for item in batch
-        #     ]
-        return list(map(self.function, batch))
+        if executor is not None:
+            loop = asyncio.get_event_loop()
+            tasks = [
+                loop.run_in_executor(executor, self.function, item) for item in batch
+            ]
+            return await asyncio.gather(*tasks)
+        else:
+            return list(map(self.function, batch))
 
 
 class Sink(Transform):
