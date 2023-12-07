@@ -1,4 +1,5 @@
 import os
+import aiofiles
 import abc
 import functools
 import json
@@ -258,13 +259,13 @@ class Sink(Transform):
         self.output_directory = None
 
     @abc.abstractmethod
-    def write(self, batch: list[dict]):
+    async def write(self, batch: list[dict]):
         """
         Writes a batch of data.
         """
         raise NotImplementedError
 
-    def __call__(self, batch: list[dict]):
+    async def __call__(self, batch: list[dict]):
         self.write(batch)
         return batch
 
@@ -297,37 +298,10 @@ class JSONLSink(Sink):
             os.makedirs(os.path.dirname(self.output_file), exist_ok=True)
         self.compiled = True
 
-    def write(self, batch: list[dict]):
+    async def write(self, batch: list[dict]):
         """
         Writes a batch of data.
         """
-        with open(self.output_file, "a") as f:
+        async with open(self.output_file, "a") as f:
             for item in batch:
-                f.write(json.dumps(item) + "\n")
-
-# class BatchedS3JSONLSink(Sink):
-#     """
-#     A sink that writes large batches of data to an S3 bucket as JSONL.
-#     (Larger batches to avoid writing every little thing that comes in.)
-#     """
-
-#     output_file: str
-
-#     def __init__(self, name: str, output_file: str):
-#         super().__init__(name)
-#         self.output_file = output_file
-
-#     def compile(self, **kwargs):
-#         """
-#         Compiles the filter with provided public Arguments.
-#         """
-#         self.set_arguments(**kwargs)  # have to do this to check no extras provided
-#         self.compiled = True
-
-#     def write(self, batch: list[dict]):
-#         """
-#         Writes a batch of data.
-#         """
-#         with open(self.output_file, "a") as f:
-#             for item in batch:
-#                 f.write(json.dumps(item) + "\n")
+                await f.write(json.dumps(item) + "\n")

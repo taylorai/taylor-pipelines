@@ -90,12 +90,16 @@ class Pipeline:
                 return
         raise ValueError(f"Transform {transform_name} not found.")
 
-    def apply_transforms(self, batch: list[dict]) -> list[dict]:
+    async def apply_transforms(self, batch: list[dict]) -> list[dict]:
         """
         Applies the transforms to a batch of data.
         """
         for transform in self.transforms:
-            batch = transform(batch)
+            # file I/O uses aiofiles, which is async, so we need to await it
+            if isinstance(transform, Sink):
+                await transform(batch)
+            else:
+                batch = transform(batch)
         return batch
 
     async def stream_batches(self):
@@ -123,8 +127,8 @@ class Pipeline:
                 self.queue.task_done()
                 break
             # print("got batch")
-            self.apply_transforms(batch)
-            await asyncio.sleep(0) # allow other tasks to run so the doesn't empty
+            await self.apply_transforms(batch)
+            # await asyncio.sleep(0) # allow other tasks to run so the doesn't empty
             self.metrics["batches_processed"] += 1
             self.queue.task_done()
 
