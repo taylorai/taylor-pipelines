@@ -123,6 +123,7 @@ class Pipeline:
         # print("put None")
 
     async def process_batches(self):
+        print("Processing batches with max_workers", mp.cpu_count())
         with concurrent.futures.ProcessPoolExecutor(max_workers=mp.cpu_count()) as pool:
             while True:
                 batch = await self.queue.get()
