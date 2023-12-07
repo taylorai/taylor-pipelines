@@ -1,5 +1,6 @@
 rich
 ruff
+aiofiles
 boto3>=1.29.4,<1.33.2 # to make compatible with s3fs/aiobotocore
 zstandard
 lz4

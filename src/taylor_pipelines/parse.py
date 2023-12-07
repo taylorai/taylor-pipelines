@@ -1,5 +1,6 @@
 import abc
 import json
+import pandas as pd
 from collections.abc import Iterator
 
 from .source import File
@@ -36,3 +37,17 @@ class JSONLParser(Parser):
             if line.strip():
                 self.metrics["items_out"] += 1
                 yield json.loads(line)
+
+
+class ParquetParser(Parser):
+    """
+    A parser that parses Parquet files.
+    """
+
+    def parse(self, file: File) -> Iterator[dict]:
+        """
+        Parses a Parquet file.
+        """
+        df = pd.read_parquet(file.content)
+        for _, row in df.iterrows():
+            yield row.to_dict()
