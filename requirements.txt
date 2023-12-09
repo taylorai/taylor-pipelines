@@ -1,9 +1,11 @@
 rich
 ruff
 aiofiles
+pyarrow
 boto3>=1.29.4,<1.33.2 # to make compatible with s3fs/aiobotocore
 zstandard
 lz4
 tiktoken
 pandas
+json-tricks
 s3fs==2023.12.1

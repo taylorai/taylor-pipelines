@@ -7,6 +7,7 @@ import concurrent.futures
 import abc
 import functools
 import json
+import json_tricks
 from collections.abc import Callable
 from typing import Any, Optional
 
@@ -330,6 +331,7 @@ class JSONLSink(Sink):
         if self.output_directory is not None:
             self.output_file = os.path.join(self.output_directory, self.output_file)
             os.makedirs(os.path.dirname(self.output_file), exist_ok=True)
+        print("Output file for JSONL Sink:", self.output_file)
         self.compiled = True
 
     async def write(self, batch: list[dict]):
@@ -338,4 +340,4 @@ class JSONLSink(Sink):
         """
         async with aiofiles.open(self.output_file, "a") as f:
             for item in batch:
-                await f.write(json.dumps(item) + "\n")
+                await f.write(json_tricks.dumps(item, primitives=True) + "\n")

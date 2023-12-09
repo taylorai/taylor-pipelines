@@ -1,5 +1,8 @@
 import abc
 import os
+from io import BytesIO
+import json
+import pandas as pd
 import re
 import asyncio
 from collections.abc import Iterator
@@ -32,6 +35,54 @@ class File:
     content: Any
     # should we include metadata?
 
+class Parser(abc.ABC):
+    """
+    A parser defines a way to parse a data source, and returns an iterator over its
+    items as dictionaries.
+    """
+
+    def __init__(self):
+        self.metrics = {"files_in": 0, "items_out": 0}
+
+    @abc.abstractmethod
+    def parse(self, file: File) -> Iterator[dict]:
+        """
+        Parses a data source.
+        """
+        raise NotImplementedError
+
+
+class JSONLParser(Parser):
+    """
+    A parser that parses JSON files.
+    """
+
+    def parse(self, file: File) -> Iterator[dict]:
+        """
+        Parses a JSON file.
+        """
+        self.metrics["files_in"] += 1
+        for line in file.content.split("\n"):
+            if line.strip():
+                self.metrics["items_out"] += 1
+                yield json.loads(line)
+
+
+class ParquetParser(Parser):
+    """
+    A parser that parses Parquet files.
+    """
+
+    def parse(self, file: File) -> Iterator[dict]:
+        """
+        Parses a Parquet file.
+        """
+        self.metrics["files_in"] += 1
+        df = pd.read_parquet(BytesIO(file.content))
+        for _, row in df.iterrows():
+            self.metrics["items_out"] += 1
+            yield row.to_dict()
+
 
 class Source(abc.ABC):
     """
@@ -39,6 +90,7 @@ class Source(abc.ABC):
     It should be able to return an async iterator (this allows other work
     to be done while waiting for I/O).
     """
+    parser: Parser
 
     @property
     def batched(self) -> bool:
@@ -62,14 +114,20 @@ def normalized_hash(item: str):
 
 @dataclass
 class S3(Source):
+    # configuration things
     bucket: str
     prefix: Optional[str]
     access_key_id: str
     secret_access_key: str
+    parser: Parser
     compression: Literal["lz4", "zstd", None] = None
     sample_rate: float = 1.0
-    session: AioSession = field(init=False)
+    sample_level: Literal["file", "instance"] = "file"
+    max_concurrent_downloads = 500
+    
+    # internal things
     prefixes: list[str] = field(init=False, default_factory=list)
+    session: AioSession = field(init=False)
     queue: Optional[asyncio.Queue] = None
     semaphore: Optional[asyncio.Semaphore] = None
 
@@ -96,6 +154,8 @@ class S3(Source):
             # split out the bucket name
             self.prefixes = [p.split("/", 1)[1] for p in prefixes]
             print("Found", len(self.prefixes), "prefixes.")
+            if len(self.prefixes) < 10:
+                print("Prefixes:", self.prefixes)
 
         else:
             print("Prefix does not contain glob characters, so we're not expanding.")
@@ -120,14 +180,14 @@ class S3(Source):
     async def paginate_and_fetch(self, client, prefix):
         paginator = client.get_paginator("list_objects_v2")
         async for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
-            if not page["Contents"]:
+            if not page.get("Contents", None):
                 print("No objects found.")
                 continue
             for obj in page["Contents"]:
                 # skip directories
                 if obj["Key"].endswith("/"):
                     continue
-                if self.sample_rate < 1.0:
+                if self.sample_rate < 1.0 and self.sample_level == "file":
                     if normalized_hash(obj["Key"]) > self.sample_rate:
                         continue
                 await self.fetch_object(client, obj["Key"])
@@ -145,7 +205,7 @@ class S3(Source):
         Returns an iterator over S3 objects.
         """
         self.queue = asyncio.Queue()
-        self.semaphore = asyncio.Semaphore(500) # limit to 100 concurrent requests
+        self.semaphore = asyncio.Semaphore(self.max_concurrent_downloads) # limit to 100 concurrent requests
         async with self.session.create_client(
             "s3",
             aws_access_key_id=self.access_key_id,
@@ -164,41 +224,12 @@ class S3(Source):
                 if file is None:
                     self.queue.task_done()
                     break
-                yield file
+                for item in self.parser.parse(file):
+                    if self.sample_rate < 1.0 and self.sample_level == "instance":
+                        if normalized_hash(str(item)) > self.sample_rate:
+                            continue
+                    yield item
                 self.queue.task_done()
             
             await producer
             await self.queue.join()
-
-
-
-## NEED TO MAKE THIS ASYNC TO FIT WITH THE API NOW
-# class LocalDirectory(Source):
-#     directory: str
-#     compression: Literal["lz4", "zstd", None] = None
-
-#     def __init__(self, directory: str):
-#         self.directory = directory
-
-#     def decompress(self, obj: Any) -> Any:
-#         """
-#         Decompresses an object.
-#         """
-#         if self.compression == "lz4":
-#             return lz4.decompress(obj).decode("utf-8")
-#         elif self.compression == "zstd":
-#             return zstd.decompress(obj)
-#         elif self.compression is None:
-#             return obj
-#         else:
-#             raise ValueError(f"Unknown compression {self.compression}")
-
-#     def iterator(self) -> Iterator[Any]:
-#         """
-#         Returns an iterator over files in a directory.
-#         """
-#         for filename in os.listdir(self.directory):
-#             with open(os.path.join(self.directory, filename), "rb") as f:
-#                 data = f.read()
-#                 decompressed_data = self.decompress(data)
-#                 yield File(filename=filename, content=decompressed_data)

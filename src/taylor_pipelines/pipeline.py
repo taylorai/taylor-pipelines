@@ -2,14 +2,18 @@ import os
 import concurrent.futures
 import multiprocessing as mp
 from dataclasses import dataclass, field
-from typing import Union, Optional
+from typing import Union, Optional, Literal
 
 import asyncio
 from .argument import Argument
-from .parse import Parser
 from .process import Transform, Filter, Map, Sink
-from .source import Source, S3
+from .source import Source, S3, Parser, JSONLParser, ParquetParser
 
+
+PARSERS = {
+    "jsonl": JSONLParser,
+    "parquet": ParquetParser
+}
 
 @dataclass
 class Pipeline:
@@ -19,13 +23,13 @@ class Pipeline:
     """
 
     source: Optional[Source]
-    parser: Parser
+    parser: Optional[Parser] = None
     output_directory: str = None
     transforms: list[Transform] = field(default_factory=list)
     batch_size: int = 25
     arguments: list[Argument] = field(default_factory=list)
     metrics: dict[str, Union[int, float]] = field(
-        default_factory=lambda: {"files_read": 0, "items_parsed": 0, "batches_processed": 0}
+        default_factory=lambda: {"items_parsed": 0, "batches_processed": 0}
     )
     compiled: bool = False
     queue: Optional[asyncio.Queue] = None
@@ -43,16 +47,24 @@ class Pipeline:
         access_key_id: str,
         secret_access_key: str,
         sample_rate: float = 1.0,
+        file_type: Literal["jsonl", "parquet", None] = None,
         compression: str = None
     ):
         """
         Sets the data source to an S3 bucket.
         """
+        if self.parser:
+            parser = self.parser
+        elif file_type:
+            parser = PARSERS[file_type]()
+        else:
+            parser = JSONLParser()
         self.source = S3(
             bucket=bucket,
             prefix=prefix,
             access_key_id=access_key_id,
             secret_access_key=secret_access_key,
+            parser=parser,
             compression=compression,
             sample_rate=sample_rate
         )
@@ -101,21 +113,18 @@ class Pipeline:
         Applies the transforms to a batch of data.
         """
         for transform in self.transforms:
-            # file I/O uses aiofiles, which is async, so we need to await it
             batch = await transform(batch, executor=executor)
         return batch
 
     async def stream_batches(self):
         batch = []
-        async for file in self.source:
-            self.metrics["files_read"] += 1
-            for item in self.parser.parse(file):
-                self.metrics["items_parsed"] += 1
-                batch.append(item)
-                if len(batch) == self.batch_size:
-                    await self.queue.put(batch)
-                    # print("put batch")
-                    batch = []
+        async for item in self.source:
+            self.metrics["items_parsed"] += 1
+            batch.append(item)
+            if len(batch) == self.batch_size:
+                await self.queue.put(batch)
+                # print("put batch")
+                batch = []
         if batch:
             await self.queue.put(batch)
             # print("put batch")
@@ -157,7 +166,7 @@ class Pipeline:
     def __str__(self):
         result = "== Pipeline ==\n"
         result += "↳ Source: " + str(self.source) + "\n"
-        result += "↳ Parser: " + str(self.parser.__class__.__name__) + "\n"
+        result += "↳ Parser: " + str(self.source.parser.__class__.__name__) + "\n"
         result += f"↳ Transforms ({len(self.transforms)}):"
         for transform in self.transforms:
             result += "\n  "
@@ -198,7 +207,7 @@ class Pipeline:
     def print_metrics(self):
         result = "== Metrics ==\n"
         print("Pipeline:", self.metrics)
-        print("Parser:", self.parser.metrics)
+        print("Parser:", self.source.parser.metrics)
         for t in self.transforms:
             if hasattr(t, "metrics"):
                 print(t.name, t.metrics)
