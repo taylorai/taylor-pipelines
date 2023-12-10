@@ -162,7 +162,11 @@ class S3(Source):
             self.prefixes = [self.prefix]
 
     def __str__(self):
-        return f"🪣 [S3 Source]: s3://{self.bucket}{('/' + self.prefix) if self.prefix else ''}"
+        result = f"🪣 [S3 Source]: s3://{self.bucket}{('/' + self.prefix) if self.prefix else ''}"
+        result += f"\n ↳ 📦 [Parser]: {self.parser}"
+        result += f"\n ↳ 📈 [Sampling]: {self.sample_rate * 100}% of {self.sample_level}s"
+        # compression
+        result += f"\n ↳ 🗜 [Compression]: {self.compression}"
 
     def decompress(self, obj: Any) -> Any:
         """

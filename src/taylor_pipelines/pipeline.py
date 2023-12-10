@@ -12,7 +12,8 @@ from .source import Source, S3, Parser, JSONLParser, ParquetParser
 
 PARSERS = {
     "jsonl": JSONLParser,
-    "parquet": ParquetParser
+    "parquet": ParquetParser,
+    "csv": None
 }
 
 @dataclass
@@ -46,9 +47,10 @@ class Pipeline:
         prefix: str, 
         access_key_id: str,
         secret_access_key: str,
+        file_type: Literal["jsonl", "parquet", "csv"],
         sample_rate: float = 1.0,
-        file_type: Literal["jsonl", "parquet", None] = None,
-        compression: str = None
+        sample_level: Literal["file", "instance"] = "file",
+        compression: Literal["lz4", "zstd", None] = None
     ):
         """
         Sets the data source to an S3 bucket.
@@ -66,7 +68,8 @@ class Pipeline:
             secret_access_key=secret_access_key,
             parser=parser,
             compression=compression,
-            sample_rate=sample_rate
+            sample_rate=sample_rate,
+            sample_level=sample_level
         )
 
     def compile_transforms(self, arguments: dict):
