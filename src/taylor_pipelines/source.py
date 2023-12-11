@@ -167,6 +167,7 @@ class S3(Source):
         result += f"\n ↳ 📈 [Sampling]: {self.sample_rate * 100}% of {self.sample_level}s"
         # compression
         result += f"\n ↳ 🗜 [Compression]: {self.compression}"
+        return result
 
     def decompress(self, obj: Any) -> Any:
         """
