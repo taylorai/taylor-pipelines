@@ -253,7 +253,7 @@ class BooleanArgument(Argument):
         """
         Validates a value for the argument.
         """
-        return isinstance(self.value, bool):
+        return isinstance(self.value, bool)
 
     def to_json(self) -> dict:
         """
