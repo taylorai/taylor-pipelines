@@ -195,6 +195,7 @@ class Pipeline:
                 "description": transform.description,
                 "optional": transform.optional,
                 "arguments": [],
+                "source_code": transform.source_code,
             }
             if isinstance(transform, Filter):
                 transform_spec["type"] = "filter"
