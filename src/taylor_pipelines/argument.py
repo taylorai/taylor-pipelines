@@ -60,7 +60,6 @@ class MultipleChoiceArgument(Argument):
     A multiple choice argument is an argument that can take one of a set of
     string values.
     """
-
     choices: list[str]
 
     def __init__(
@@ -97,21 +96,95 @@ class MultipleChoiceArgument(Argument):
         }
 
 
-# class StringArgument(Argument):
-#     """
-#     A string argument is an argument that takes a string value.
-#     """
-#     valid_regex: str = None
+class StringArgument(Argument):
+    """
+    A string argument is an argument that takes a string value.
+    """
+    valid_regex: str = None
 
-#     def validate(self, value: Any) -> bool:
-#         """
-#         Validates a value for the argument.
-#         """
-#         if not isinstance(value, str):
-#             return False
-#         if self.valid_regex is not None:
-#             return re.match(self.valid_regex, value) is not None
-#         return True
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        required: bool = True,
+        default: Optional[Any] = None,
+        value: Optional[Any] = None,
+        valid_regex: Optional[str] = None,
+    ):
+        super().__init__(name, description, required, default, value)
+        self.valid_regex = valid_regex
+        self.type = str
+
+    def validate(self, value: Any) -> bool:
+        """
+        Validates a value for the argument.
+        """
+        if not isinstance(value, str):
+            return False
+        if self.valid_regex is not None:
+            return re.match(self.valid_regex, value) is not None
+        return True
+    
+    def to_json(self) -> dict:
+        """
+        Returns a JSON representation of the argument.
+        """
+        return {
+            "name": self.name,
+            "description": self.description,
+            "required": self.required,
+            "default": self.default,
+            "value": self.value,
+            "valid_regex": self.valid_regex,
+            "type": "StringArgument",
+        }
+    
+class ListArgument(Argument):
+    """
+    A list argument is a list of strings (for now).
+    """
+    valid_regex: str = None
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        required: bool = True,
+        default: Optional[Any] = None,
+        value: Optional[Any] = None,
+        valid_regex: Optional[str] = None,
+    ):
+        super().__init__(name, description, required, default, value)
+        self.valid_regex = valid_regex
+        self.type = list[str]
+
+    def validate(self, value: Any) -> bool:
+        """
+        Validates a value for the argument.
+        """
+        if not isinstance(value, list):
+            return False
+        for item in value:
+            if not isinstance(item, str):
+                return False
+            if self.valid_regex is not None:
+                if re.match(self.valid_regex, item) is None:
+                    return False
+        return True
+    
+    def to_json(self) -> dict:
+        """
+        Returns a JSON representation of the argument.
+        """
+        return {
+            "name": self.name,
+            "description": self.description,
+            "required": self.required,
+            "default": self.default,
+            "value": self.value,
+            "valid_regex": self.valid_regex,
+            "type": "ListArgument",
+        }
 
 
 class IntegerArgument(Argument):
@@ -161,17 +234,39 @@ class IntegerArgument(Argument):
             "type": "IntegerArgument",
         }
 
+class BooleanArgument(Argument):
+    """
+    A boolean argument is an argument that takes a boolean value.
+    """
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        required: bool = True,
+        default: Optional[Any] = None,
+        value: Optional[Any] = None,
+    ):
+        super().__init__(name, description, required, default, value)
+        self.type = bool
 
-# @dataclass
-# class BooleanArgument(Argument):
-#     """
-#     A boolean argument is an argument that takes a boolean value.
-#     """
-#     def validate(self, value: Any) -> bool:
-#         """
-#         Validates a value for the argument.
-#         """
-#         return isinstance(value, bool)
+    def validate(self) -> bool:
+        """
+        Validates a value for the argument.
+        """
+        return isinstance(self.value, bool):
+
+    def to_json(self) -> dict:
+        """
+        Returns a JSON representation of the argument.
+        """
+        return {
+            "name": self.name,
+            "description": self.description,
+            "required": self.required,
+            "default": self.default,
+            "value": self.value,
+            "type": "BooleanArgument",
+        }
 
 # @dataclass
 # class FloatArgument(Argument):
