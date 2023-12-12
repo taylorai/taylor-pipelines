@@ -62,6 +62,8 @@ class JSONLParser(Parser):
         Parses a JSON file.
         """
         self.metrics["files_in"] += 1
+        if isinstance(file.content, bytes):
+            file.content = file.content.decode()
         for line in file.content.split("\n"):
             if line.strip():
                 self.metrics["items_out"] += 1
