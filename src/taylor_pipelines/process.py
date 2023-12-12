@@ -1,4 +1,5 @@
 import os
+import inspect
 import pickle
 import asyncio
 import aiofiles
@@ -34,12 +35,14 @@ class Transform(abc.ABC):
         description: str = "",
         arguments: list[Argument] = [],
         optional: bool = False,
+        source_code: Optional[str] = None
     ):
         self.name = name
         self.description = description
         self.arguments = {argument.name: argument for argument in arguments}
         self.optional = optional
         self.compiled = False
+        self.source_code = source_code
 
     def args_to_kwargs(self):
         """
@@ -155,6 +158,11 @@ class FunctionFilter(Filter):
         self.predicate = functools.partial(predicate, **kwargs)
         super().__init__(name, description, arguments, optional)
 
+        try:
+            self.source_code = inspect.getsource(predicate)
+        except Exception as e:
+            print(f"Unable to get source code for {name} predicate. Error: {e}")
+
     def compile(self, **kwargs):
         """
         Compiles the filter with provided public Arguments.
@@ -237,6 +245,11 @@ class FunctionMap(Map):
     ):
         self.function = functools.partial(function, **kwargs)
         super().__init__(name, description, arguments, optional)
+
+        try:
+            self.source_code = inspect.getsource(function)
+        except Exception as e:
+            print(f"Unable to get source code for {name} function. Error: {e}")
 
     def compile(self, **kwargs):
         """
