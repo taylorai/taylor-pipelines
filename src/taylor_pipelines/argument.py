@@ -243,7 +243,7 @@ class BooleanArgument(Argument):
         name: str,
         description: str,
         required: bool = True,
-        default: Optional[Any] = None,
+        default: Optional[Any] = False,
         value: Optional[Any] = None,
     ):
         super().__init__(name, description, required, default, value)
