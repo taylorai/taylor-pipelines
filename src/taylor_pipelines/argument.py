@@ -268,26 +268,41 @@ class BooleanArgument(Argument):
             "type": "BooleanArgument",
         }
 
-# @dataclass
-# class FloatArgument(Argument):
-#     """
-#     A float argument is an argument that takes a float value.
-#     """
-#     min_value: float = None
-#     max_value: float = None
+class FloatArgument(Argument):
+    """
+    A float argument is an argument that takes a float value.
+    """
+    min_value: float = None
+    max_value: float = None
 
-#     def validate(self, value: Any) -> bool:
-#         """
-#         Validates a value for the argument.
-#         """
-#         if not isinstance(value, float):
-#             return False
-#         if self.min_value is not None and value < self.min_value:
-#             return False
-#         if self.max_value is not None and value > self.max_value:
-#             return False
-#         return True
-
+    def validate(self) -> bool:
+        """
+        Validates a value for the argument.
+        """
+        if not isinstance(self.value, float) and not isinstance(self.value, int):
+            return False
+        if self.min_value is not None and self.value < self.min_value:
+            return False
+        if self.max_value is not None and self.value > self.max_value:
+            return False
+        self.value = float(self.value)
+        return True
+    
+    def to_json(self) -> dict:
+        """
+        Returns a JSON representation of the argument.
+        """
+        return {
+            "name": self.name,
+            "description": self.description,
+            "required": self.required,
+            "default": self.default,
+            "value": self.value,
+            "min_value": self.min_value,
+            "max_value": self.max_value,
+            "type": "FloatArgument",
+        }
+    
 # @dataclass
 # class DateArgument(Argument):
 #     """
