@@ -115,14 +115,14 @@ class StringArgument(Argument):
         self.valid_regex = valid_regex
         self.type = str
 
-    def validate(self, value: Any) -> bool:
+    def validate(self) -> bool:
         """
         Validates a value for the argument.
         """
-        if not isinstance(value, str):
+        if not isinstance(self.value, str):
             return False
         if self.valid_regex is not None:
-            return re.match(self.valid_regex, value) is not None
+            return re.match(self.valid_regex, self.value) is not None
         return True
     
     def to_json(self) -> dict:
@@ -158,13 +158,13 @@ class ListArgument(Argument):
         self.valid_regex = valid_regex
         self.type = list[str]
 
-    def validate(self, value: Any) -> bool:
+    def validate(self) -> bool:
         """
         Validates a value for the argument.
         """
-        if not isinstance(value, list):
+        if not isinstance(self.value, list):
             return False
-        for item in value:
+        for item in self.value:
             if not isinstance(item, str):
                 return False
             if self.valid_regex is not None:
