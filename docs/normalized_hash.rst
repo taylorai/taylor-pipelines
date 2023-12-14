@@ -1,5 +1,5 @@
-Source
+normalized_hash
 =============
 
-.. autoclass:: taylor_pipelines.source.Source
+.. autoclass:: taylor_pipelines.source.normalized_hash
    :members:

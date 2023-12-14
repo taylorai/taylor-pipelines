@@ -1,5 +1,5 @@
-Transform
+Filter
 =============
 
-.. autoclass:: taylor_pipelines.process.Transform
+.. autoclass:: taylor_pipelines.process.Filter
    :members:
