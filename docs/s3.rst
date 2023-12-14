@@ -1,0 +1,5 @@
+S3
+=============
+
+.. autoclass:: taylor_pipelines.source.S3
+   :members:
