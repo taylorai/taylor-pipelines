@@ -1,16 +1,25 @@
 .. taylor-pipelines documentation master file, created by
-   sphinx-quickstart on Wed Dec 13 19:39:18 2023.
+   sphinx-quickstart.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to taylor-pipelines's documentation!
-============================================
+Welcome to Taylor Pipelines
+=======================================
+
+Taylor Pipelines provides a frontend for your advanced data pipelines, turning Python functions into parameterized data processing.
+
+Taylor Pipelines is made available under the Apache 2.0 license.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
-
+   installation
+   quickstart
+   _argument
+   _process
+   _pipeline
+   _source
 
 Indices and tables
 ==================
