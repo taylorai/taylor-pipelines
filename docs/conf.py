@@ -15,10 +15,8 @@ project = "Taylor AI"
 copyright = "Taylor AI, Inc., 2023"
 author = "Benjamin Anderson & Brian Kim"
 
-favicons = [
-    "favicon.ico",
-    "favicon.ico",
-]
+html_favicon = '_static/favicon.ico'
+
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
