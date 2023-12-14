@@ -8,7 +8,7 @@ Welcome to Taylor Pipelines
 
 Taylor Pipelines provides a frontend for your advanced data pipelines, turning Python functions into parameterized data processing.
 
-Taylor Pipelines is available under the Apache 2.0 license.
+Taylor Pipelines is made available under the Apache 2.0 license.
 
 .. toctree::
    :maxdepth: 1
