@@ -131,11 +131,12 @@ class Pipeline:
         """
         Applies the transforms to a batch of data.
         """
-        for transform in self.transforms:
-            batch = await transform(batch, executor=executor)
-        self.metrics["batches_processed"] += 1
-        self.update_status(f"Processed {self.metrics['batches_processed']} batches")
-        return batch
+        async with self.semaphore:
+            for transform in self.transforms:
+                batch = await transform(batch, executor=executor)
+            self.metrics["batches_processed"] += 1
+            self.update_status(f"Processed {self.metrics['batches_processed']} batches")
+            return batch
 
     async def stream_batches(self):
         batch = []
@@ -144,13 +145,14 @@ class Pipeline:
             if len(batch) == self.batch_size:
                 await self.queue.put(batch)
                 self.metrics["batches_streamed"] += 1
+                self.update_status()
                 # print("put batch")
                 batch = []
         if batch:
             await self.queue.put(batch)
-            # print("put batch")
+            self.metrics["batches_streamed"] += 1
+            self.update_status()
         await self.queue.put(None)
-        # print("put None")
 
     async def process_batches(self):
         # print("Processing batches with max_workers", mp.cpu_count())
@@ -177,6 +179,7 @@ class Pipeline:
         print(self)
         with self.status:
             if not self.compiled:
+                self.status.update("Compiling transforms...")
                 self.compile_transforms(arguments)
             start_time = time.time()
             self.queue = asyncio.Queue()
