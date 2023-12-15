@@ -18,6 +18,7 @@ from collections.abc import Callable
 from typing import Any, Optional
 
 from .argument import Argument
+from .embeddings import ONNXEmbeddingModel
 
 
 class Transform(abc.ABC):
@@ -430,7 +431,51 @@ class LocalEmbeddingMap(Map):
     Compute text embedding on a field in a batch of data and put the output in a new field.
     This one is for a local server. Use APIEmbeddingMap to compute remotely.
     """
-    pass
+    def __init__(
+        self,
+        name: str,
+        input_field: str,
+        output_field: str,
+        local_onnx_path: str,
+        huggingface_repo: str = None, # used for tokenizer, and model not found at local_onnx_path 
+        huggingface_path_in_repo: Optional[str] = None, # used if model not found at local_onnx_path
+        max_length=512,
+        normalize=True,
+        optional: bool = False,
+    ):
+        super().__init__(name, description=f"Compute embeddings on {input_field} and put them in {output_field}.", optional=optional)
+        self.input_field = input_field
+        self.output_field = output_field
+        self.normalize = normalize
+        self.model = ONNXEmbeddingModel(
+            local_onnx_path=local_onnx_path,
+            huggingface_repo=huggingface_repo,
+            huggingface_path_in_repo=huggingface_path_in_repo,
+            max_length=max_length
+        )
+
+    def compile(self, **kwargs):
+        self.compiled = True
+
+    async def map(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
+        """
+        Gets embeddings for a batch of data.
+        """
+        if not self.compiled:
+            raise ValueError("LocalEmbeddingMap not compiled.")
+        if self.input_field is None:
+            raise ValueError("LocalEmbeddingMap input field is None.")
+        if self.output_field is None:
+            raise ValueError("LocalEmbeddingMap output field is None.")
+        
+        texts = [item[self.input_field] for item in batch]
+        embeddings = self.model.embed_batch(texts, normalize=self.normalize)
+        return [
+            {**item, self.output_field: embedding} for item, embedding in zip(batch, embeddings)
+        ]
+
+    
+
 
 class Sink(Transform):
     """

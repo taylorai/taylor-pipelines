@@ -30,7 +30,9 @@ dependencies = [
     "jinja2",
     "aiohttp",
     "datasets",
-    "python-dotenv"
+    "python-dotenv",
+    "onnxruntime",
+    "transformers"
 ]
 
 [tool.ruff]
