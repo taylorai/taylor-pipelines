@@ -462,6 +462,13 @@ class Sink(Transform):
         Writes a batch of data.
         """
         raise NotImplementedError
+    
+    @abc.abstractmethod
+    async def flush(self):
+        """
+        Flushes any remaining data to disk.
+        """
+        pass
 
     async def __call__(self, batch: list[dict], executor: concurrent.futures.Executor = None):
         await self.write(batch)
@@ -514,4 +521,10 @@ class JSONLSink(Sink):
         if len(self.buffer) + len(batch) > self.max_buffer_size:
             await self._flush_buffer()
         self.buffer.extend(batch)
+
+    async def flush(self):
+        """
+        Flushes any remaining data to disk.
+        """
+        await self._flush_buffer()
         
