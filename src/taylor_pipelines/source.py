@@ -300,12 +300,10 @@ class HuggingFace(Source):
             huggingface_hub.login(token=self.hf_api_key)
         handle = datasets.load_dataset(
             self.dataset_name, name=self.config_name, split=self.split, streaming=self.streaming
-        )
+        ).filter(lambda x: random.random() < self.sample_rate)
 
         for item in handle:
-            if self.sample_rate < 1.0:
-                if random.random() < self.sample_rate:
-                    yield item
+            yield item
 
     async def __aiter__(self) -> AsyncIterator[dict]:
         """
@@ -313,4 +311,5 @@ class HuggingFace(Source):
         """
         for item in self:
             yield item
+            await asyncio.sleep(0.01)
             
