@@ -44,7 +44,6 @@ html_context = {
     """
 }
 
-
 # Ensure that the extra HTML is added to every page
 def setup(app):
     app.add_config_value("extra_html", "", "html")
