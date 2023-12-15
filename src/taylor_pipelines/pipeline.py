@@ -36,7 +36,7 @@ class Pipeline:
 
     # internal
     metrics: dict[str, Union[int, float]] = field(
-        default_factory=lambda: {"items_parsed": 0, "batches_processed": 0}
+        default_factory=lambda: {"batches_streamed": 0, "batches_processed": 0}
     )
     compiled: bool = False
     queue: Optional[asyncio.Queue] = None
@@ -116,10 +116,11 @@ class Pipeline:
                 return
         raise ValueError(f"Transform {transform_name} not found.")
 
-    def update_status(self, message: str):
+    def update_status(self):
         """
         Updates the status bar.
         """
+        message = f"Streamed {self.metrics['batch_streamed']} batches, processed {self.metrics['batches_processed']} batches."
         self.status.update(message)
 
     async def apply_transforms(
@@ -139,10 +140,10 @@ class Pipeline:
     async def stream_batches(self):
         batch = []
         async for item in self.source:
-            self.metrics["items_parsed"] += 1
             batch.append(item)
             if len(batch) == self.batch_size:
                 await self.queue.put(batch)
+                self.metrics["batches_streamed"] += 1
                 # print("put batch")
                 batch = []
         if batch:
