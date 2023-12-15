@@ -2,6 +2,7 @@ import os
 import inspect
 import pickle
 import asyncio
+import aiohttp
 import aiofiles
 import concurrent.futures
 
@@ -9,6 +10,10 @@ import abc
 import functools
 import json
 import json_tricks
+import jinja2
+from jinja2.sandbox import ImmutableSandboxedEnvironment
+from jinja2 import meta
+
 from collections.abc import Callable
 from typing import Any, Optional
 
@@ -282,6 +287,151 @@ class FunctionMap(Map):
             return list(map(self.function, batch))
 
 
+class LLMMap(Map):
+    """
+    Apply LLM completion to a batch of data and put the output in a new field.
+    Works with any OpenAI-compatible API. The prompt and system prompt will be
+    compiled ONCE with Jinja2 using provided Arguments (if applicable). Fields from the
+    input dataset that vary per data sample should be doubly-nested: {{ "{{ field_name }}" }}.
+    At compilation time, these will unnest, and then will be filled in per-example.
+    """
+    def __init__(
+        self,
+        name: str,
+        prompt_template: str,
+        model_name: str,
+        output_field: str,
+        api_key: str,
+        api_base: str = "https://api.openai.com/v1",
+        description: str = "",
+        system_prompt_template: str = "",
+        temperature: float = 0.9,
+        arguments: list[Argument] = [],
+        optional: bool = False,
+    ):
+        super().__init__(name, description, arguments, optional)
+        self.prompt_template = prompt_template
+        self.system_prompt_template = system_prompt_template
+        self.api_key = api_key
+        self.api_base = api_base
+        self.model_name = model_name
+        self.temperature = temperature
+        self.output_field = output_field
+        self.prompt = None
+        self.system_prompt = None
+
+        # TODO: Add asyncio.Queue to limit concurrent requests, handle retries, etc.
+        # TODO: Add a way to specify labels + apply logit bias
+        # TODO: Other options like max_length, JSON mode, etc.
+
+    def compile(self, **kwargs):
+        """
+        Compiles the filter with provided public Arguments.
+        """
+        # validate and prepare user-provided arguments
+        self.set_arguments(**kwargs)
+        all_args = self.args_to_kwargs()
+
+        # compile the prompt and system prompt with these
+        env = ImmutableSandboxedEnvironment()
+        try:
+            prompt_env = env.from_string(self.prompt_template)
+            prompt_template_args = meta.find_undeclared_variables(env.parse(self.prompt_template))
+            self.prompt = prompt_env.render(**{
+                k: all_args[k] for k in prompt_template_args
+            })
+        except jinja2.exceptions.TemplateSyntaxError as e:
+            raise ValueError(f"Invalid prompt template: {e}")
+        
+        try:
+            system_prompt_env = env.from_string(self.system_prompt_template)
+            system_prompt_template_args = meta.find_undeclared_variables(env.parse(self.system_prompt_template))
+            self.system_prompt = system_prompt_env.render(**{
+                k: all_args[k] for k in system_prompt_template_args
+            })
+        except jinja2.exceptions.TemplateSyntaxError as e:
+            raise ValueError(f"Invalid system prompt template: {e}")
+
+        self.compiled = True
+
+    async def _get_completion(self, prompt: str, system_prompt: str) -> str:
+        """
+        Gets a completion from the API.
+        """
+        messages = []
+        if system_prompt and len(system_prompt) > 0:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        self.request_header = {
+            "Authorization": f"Bearer {self.api_key}",
+        }
+        self.request_json = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": self.temperature,
+        }
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            try:
+                async with session.post(
+                    url=self.api_base + "/chat/completions",
+                    headers=self.request_header,
+                    json=self.request_json,
+                ) as response:
+                    if response.status != 200:
+                        text = await response.text()
+                        print("Got non-200 response: ", text, "Prompt that led to this: ", prompt[:150] + "[...]", flush=True)
+                        return None
+                    
+                    response = await response.json()
+                    return response["choices"][0]["message"]["content"]
+                    # except Exception as e:
+                    #     raise e
+            except asyncio.TimeoutError as e:
+                print("Timeout occurred. Returning None.")
+                return None
+        
+    async def map(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
+        """
+        Gets completions for a batch of data. We don't use an executor, as LLM completions are network-bound
+        and asyncio is more than sufficient.
+        """
+        if not self.compiled:
+            raise ValueError("LLMMap not compiled.")
+        if self.prompt is None:
+            raise ValueError("LLMMap prompt is None.")
+        if self.system_prompt is None:
+            raise ValueError("LLMMap system prompt is None.")
+        
+        env = ImmutableSandboxedEnvironment()
+        prompt_args = meta.find_undeclared_variables(env.parse(self.prompt)) # only has holes left for per-item fields
+        prompts = [env.from_string(self.prompt).render(**{k: item[k] for k in prompt_args}) for item in batch]
+        for prompt in prompts:
+            assert len(prompt) > 0, "Prompt is empty."
+        tasks = []
+        for prompt in prompts:
+            tasks.append(asyncio.create_task(self._get_completion(prompt, self.system_prompt)))
+
+        completions = await asyncio.gather(*tasks)
+        
+        return [
+            {**item, self.output_field: completion} for item, completion in zip(batch, completions)
+        ]
+    
+class APIEmbeddingMap(Map):
+    """
+    Compute text embedding on a field in a batch of data and put the output in a new field.
+    This one is for an OpenAI-compatible server. Use LocalEmbeddingMap to compute locally.
+    """
+    pass
+
+class LocalEmbeddingMap(Map):
+    """
+    Compute text embedding on a field in a batch of data and put the output in a new field.
+    This one is for a local server. Use APIEmbeddingMap to compute remotely.
+    """
+    pass
+
 class Sink(Transform):
     """
     A sink defines a way to write a stream of data.
@@ -331,9 +481,12 @@ class JSONLSink(Sink):
         description: str = "",
         arguments: list[Argument] = [],
         optional: bool = False,
+        max_buffer_size: int = 100000
     ):
         super().__init__(name, description, arguments, optional)
         self.output_file = output_file
+        self.buffer = []
+        self.max_buffer_size = max_buffer_size
 
     def compile(self, **kwargs):
         """
@@ -347,10 +500,18 @@ class JSONLSink(Sink):
         print("Output file for JSONL Sink:", self.output_file)
         self.compiled = True
 
+    async def _flush_buffer(self):
+        async with aiofiles.open(self.output_file, "a") as f:
+            for item in self.buffer:
+                await f.write(json_tricks.dumps(item, primitives=True) + "\n")
+        self.buffer = []
+        
+
     async def write(self, batch: list[dict]):
         """
         Writes a batch of data.
         """
-        async with aiofiles.open(self.output_file, "a") as f:
-            for item in batch:
-                await f.write(json_tricks.dumps(item, primitives=True) + "\n")
+        if len(self.buffer) + len(batch) > self.max_buffer_size:
+            await self._flush_buffer()
+        self.buffer.extend(batch)
+        

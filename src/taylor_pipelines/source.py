@@ -1,7 +1,9 @@
 import abc
 import os
 from io import BytesIO
+import random
 import json
+import numpy as np
 import pandas as pd
 import re
 import asyncio
@@ -197,15 +199,37 @@ class S3(Source):
                 if self.sample_rate < 1.0 and self.sample_level == "file":
                     if normalized_hash(obj["Key"]) > self.sample_rate:
                         continue
-                await self.fetch_object(client, obj["Key"])
+                object_size = obj["Size"]
+                await self.fetch_object(client, obj["Key"], object_size)
 
-    async def fetch_object(self, client, key):
+    async def fetch_chunk(self, client, key, index, byte_range):
+        # fetch without decompressing (you can only decompress the entire file)
         async with self.semaphore:
-            response = await client.get_object(Bucket=self.bucket, Key=key)
+            response = await client.get_object(Bucket=self.bucket, Key=key, Range=byte_range)
             async with response['Body'] as stream:
                 data = await stream.read()
-                decompressed_data = self.decompress(data)
-                await self.queue.put(File(filename=key, content=decompressed_data))
+            print(f"Fetched chunk {index} of {key}.")
+            return data
+        
+    async def fetch_object(self, client, key, size):
+        # if size is under 10MB, just fetch it directly
+        if size < 10_000_000:
+            async with self.semaphore:
+                response = await client.get_object(Bucket=self.bucket, Key=key)
+                async with response['Body'] as stream:
+                    data = await stream.read()
+                    decompressed_data = self.decompress(data)
+                    await self.queue.put(File(filename=key, content=decompressed_data))
+        # otherwise use Range requests to fetch it in chunks concurrently
+        else:
+            print("Fetching large file in chunks.")
+            chunk_size = 3_000_000
+            byte_ranges = [f"bytes={i}-{i+chunk_size-1}" for i in range(0, size, chunk_size)]
+            tasks = [asyncio.create_task(self.fetch_chunk(client, key, idx, byte_range=br)) for idx, br in enumerate(byte_ranges)]
+            chunks = await asyncio.gather(*tasks)
+            decompressed_data = self.decompress(b"".join(chunks))
+            await self.queue.put(File(filename=key, content=decompressed_data))
+                
             
     async def __aiter__(self) -> AsyncIterator[File]:
         """
@@ -222,7 +246,7 @@ class S3(Source):
             producer = asyncio.gather(*tasks)
 
             def done_callback(future):
-                logger.info("Done streaming files from S3.")
+                print("Done streaming files from S3.")
                 self.queue.put_nowait(None)
             producer.add_done_callback(done_callback)
 
@@ -233,10 +257,55 @@ class S3(Source):
                     break
                 for item in self.parser.parse(file):
                     if self.sample_rate < 1.0 and self.sample_level == "instance":
-                        if normalized_hash(str(item)) > self.sample_rate:
+                        # if normalized_hash(str(item)) > self.sample_rate:
+                        if random.random() > self.sample_rate:
                             continue
                     yield item
                 self.queue.task_done()
             
             await producer
             await self.queue.join()
+
+@dataclass
+class HuggingFaceSource(Source):
+    """
+    A data source that uses the HuggingFace Datasets library.
+    """
+
+    dataset_name: str
+    split: str
+    config_name: Optional[str] = None
+    sample_rate: float = 1.0
+    parser: Parser = None
+
+    def __str__(self):
+        result = f"🤗 [HuggingFace Source]: {self.dataset_name} ("
+        if self.config_name:
+            result += f"{self.config_name}/ "
+        result += f"{self.split})"
+        result += f"\n ↳ 📦 [Parser]: {self.parser}"
+        result += f"\n ↳ 📈 [Sampling]: {self.sample_rate * 100}% of examples"
+        return result
+
+
+    def __iter__(self) -> Iterator[dict]:
+        """
+        Returns an iterator over parsed data.
+        """
+        import datasets
+        handle = datasets.load_dataset(
+            self.dataset_name, name=self.config_name, split=self.split, streaming=True
+        )
+
+        for item in handle:
+            if self.sample_rate < 1.0:
+                if random.random() < self.sample_rate:
+                    yield item
+
+    async def __aiter__(self) -> AsyncIterator[dict]:
+        """
+        Returns an async iterator over files.
+        """
+        for item in self:
+            yield item
+            
