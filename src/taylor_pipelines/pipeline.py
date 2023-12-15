@@ -1,4 +1,5 @@
 import os
+import time
 import concurrent.futures
 import multiprocessing as mp
 from dataclasses import dataclass, field
@@ -137,19 +138,19 @@ class Pipeline:
         # print("put None")
 
     async def process_batches(self):
-        print("Processing batches with max_workers", mp.cpu_count())
-        with concurrent.futures.ProcessPoolExecutor(max_workers=mp.cpu_count()) as pool:
-            while True:
-                batch = await self.queue.get()
-                if batch is None:
-                    # print("got None")
-                    self.queue.task_done()
-                    break
-                # print("got batch")
-                await self.apply_transforms(batch, executor=pool)
-                # await asyncio.sleep(0) # allow other tasks to run so the doesn't empty
-                self.metrics["batches_processed"] += 1
+        # print("Processing batches with max_workers", mp.cpu_count())
+        # with concurrent.futures.ProcessPoolExecutor(max_workers=mp.cpu_count()) as pool:
+        while True:
+            batch = await self.queue.get()
+            if batch is None:
+                # print("got None")
                 self.queue.task_done()
+                break
+            # print("got batch")
+            await self.apply_transforms(batch, executor=None) # executor=pool)
+            # await asyncio.sleep(0) # allow other tasks to run so the doesn't empty
+            self.metrics["batches_processed"] += 1
+            self.queue.task_done()
 
     async def run(self, arguments: dict = {}):
         """
@@ -159,13 +160,14 @@ class Pipeline:
         print(self)
         if not self.compiled:
             self.compile_transforms(arguments)
+        start_time = time.time()
         self.queue = asyncio.Queue()
         producer = asyncio.create_task(self.stream_batches())
         consumer = asyncio.create_task(self.process_batches())
         await asyncio.gather(producer, consumer)
         await self.queue.join()
-
-        print(f"Processed {self.metrics['batches_processed']} batches.")
+        end_time = time.time()
+        print(f"Processed {self.metrics['batches_processed']} batches in {end_time - start_time} seconds.")
         self.print_metrics()
 
     def __str__(self):

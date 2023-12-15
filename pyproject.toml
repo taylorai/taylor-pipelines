@@ -25,7 +25,9 @@ dependencies = [
     "aiofiles",
     "pyarrow",
     "json-tricks",
-    "s3fs==2023.12.1"
+    "s3fs==2023.12.1",
+    "jinja2",
+    "aiohttp"
 ]
 
 [tool.ruff]
