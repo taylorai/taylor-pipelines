@@ -1,5 +1,6 @@
 import abc
 import os
+import requests
 from io import BytesIO
 import random
 import json
@@ -298,9 +299,29 @@ class HuggingFace(Source):
         if self.hf_api_key:
             import huggingface_hub
             huggingface_hub.login(token=self.hf_api_key)
+
         handle = datasets.load_dataset(
             self.dataset_name, name=self.config_name, split=self.split, streaming=self.streaming
-        ).filter(lambda x: random.random() < self.sample_rate)
+        )
+
+        if self.sample_rate < 1.0:
+            if not self.streaming:
+                dataset_length = len(handle)
+            else:
+                try:
+                    res = requests.get(
+                        f"https://datasets-server.huggingface.co/info?dataset={self.dataset_name}"
+                    )
+                    data = res.json()
+                    cn = self.config_name if self.config_name else "default"
+                    dataset_length = data["dataset_info"][cn]["splits"][self.split]["num_examples"]
+                except KeyError as e:
+                    print("Can't sample by example because dataset length is unknown.")
+                    raise e
+            idxs_to_keep = np.random.choice(
+                dataset_length, int(self.sample_rate * dataset_length), replace=False
+            )
+            handle = handle.select(idxs_to_keep)
 
         for item in handle:
             yield item
