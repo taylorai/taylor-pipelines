@@ -120,7 +120,7 @@ class Pipeline:
         """
         Updates the status bar.
         """
-        message = f"Streamed {self.metrics['batch_streamed']} batches, processed {self.metrics['batches_processed']} batches."
+        message = f"Streamed {self.metrics['batches_streamed']} batches, processed {self.metrics['batches_processed']} batches."
         self.status.update(message)
 
     async def apply_transforms(
@@ -135,7 +135,7 @@ class Pipeline:
             for transform in self.transforms:
                 batch = await transform(batch, executor=executor)
             self.metrics["batches_processed"] += 1
-            self.update_status(f"Processed {self.metrics['batches_processed']} batches")
+            self.update_status()
             return batch
 
     async def stream_batches(self):
@@ -184,6 +184,7 @@ class Pipeline:
             start_time = time.time()
             self.queue = asyncio.Queue()
             self.semaphore = asyncio.Semaphore(self.max_concurrent_batches)
+            self.status.update("Beginning to process data...")
             producer = asyncio.create_task(self.stream_batches())
             consumer = asyncio.create_task(self.process_batches())
             await asyncio.gather(producer, consumer)
