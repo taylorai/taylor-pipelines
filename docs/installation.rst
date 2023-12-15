@@ -1,8 +1,6 @@
 Installation
 =================
 
-Taylor Pipelines is a versatile and scalable library allowing seamless and efficient handling of datasets, classification, filtering, model embedding, clustering, and more. Below are the steps to install.
-
 Prerequisites
 -------------
 Before you begin, ensure you have met the following requirements:

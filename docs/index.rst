@@ -14,6 +14,7 @@ Taylor Pipelines is made available under the Apache 2.0 license.
    :maxdepth: 1
    :caption: Contents:
 
+   overview
    installation
    quickstart
    _argument
@@ -25,5 +26,4 @@ Indices and tables
 ==================
 
 * :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`

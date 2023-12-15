@@ -1,6 +1,10 @@
 import sys
 import os
 
+posthog_key = os.environ.get('NEXT_PUBLIC_POSTHOG_KEY', '')
+posthog_host = os.environ.get('NEXT_PUBLIC_POSTHOG_HOST', 'https://app.posthog.com')
+
+
 sys.path.insert(0, os.path.abspath("../src"))
 
 # Configuration file for the Sphinx documentation builder.
@@ -15,10 +19,8 @@ project = "Taylor AI"
 copyright = "Taylor AI, Inc., 2023"
 author = "Benjamin Anderson & Brian Kim"
 
-favicons = [
-    "favicon.ico",
-    "favicon.ico",
-]
+html_favicon = "_static/favicon.ico"
+
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -32,6 +34,21 @@ extensions = [
     "sphinx_favicon",  # Add favicon
 ]
 
+html_context = {
+    "extra_html": f"""
+    <script>
+        // PostHog script with environment variables
+        !function(t,e){...} // Your existing PostHog initialization script
+        posthog.init('{posthog_key}',{{api_host:'{posthog_host}'}})
+    </script>
+    """
+}
+
+# Ensure that the extra HTML is added to every page
+def setup(app):
+    app.add_config_value("extra_html", "", "html")
+
+
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 autodoc_typehints = "both"
@@ -39,28 +56,10 @@ autodoc_typehints_format = "fully-qualified"
 
 highlight_language = "python"
 
-
 html_theme_options = {
     "show_navbar_depth": 2,
     "repository_url": "https://github.com/taylorai/taylor-pipelines",
     "use_issues_button": False,
-    "icon_links": [
-        {
-            "name": "GitHub",
-            "url": "https://github.com/taylorai/taylor-pipelines",
-            "icon": "fab fa-github-square",
-        },
-        {
-            "name": "Twitter",
-            "url": "https://twitter.com/TryTaylor_AI",
-            "icon": "fab fa-twitter",
-        },
-        {
-            "name": "LinkedIn",
-            "url": "https://www.linkedin.com/company/taylor-ai/",
-            "icon": "fab fa-linkedin",
-        },
-    ],
 }
 
 # -- Options for HTML output -------------------------------------------------
