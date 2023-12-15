@@ -36,7 +36,7 @@ class Pipeline:
 
     # internal
     metrics: dict[str, Union[int, float]] = field(
-        default_factory=lambda: {"batches_streamed": 0, "batches_processed": 0}
+        default_factory=lambda: {"batches_streamed": 0, "batches_processed": 0, "items_processed": 0}
     )
     compiled: bool = False
     queue: Optional[asyncio.Queue] = None
@@ -135,6 +135,7 @@ class Pipeline:
             for transform in self.transforms:
                 batch = await transform(batch, executor=executor)
             self.metrics["batches_processed"] += 1
+            self.metrics["items_processed"] += len(batch)
             self.update_status()
             return batch
 
@@ -171,10 +172,17 @@ class Pipeline:
 
         await asyncio.gather(*tasks)
 
+    async def flush_sinks(self):
+        """
+        Flushes all sinks.
+        """
+        for transform in self.transforms:
+            if isinstance(transform, Sink):
+                await transform.flush()
+
     async def run(self, arguments: dict = {}):
         """
-        Returns an async iterator over the parsed data.
-        (Probably much faster when reading from S3).
+        Run the pipeline.
         """
         print(self)
         with self.status:
@@ -189,8 +197,13 @@ class Pipeline:
             consumer = asyncio.create_task(self.process_batches())
             await asyncio.gather(producer, consumer)
             await self.queue.join()
+            await self.flush_sinks()
             end_time = time.time()
-            print(f"Processed {self.metrics['batches_processed']} batches in {end_time - start_time} seconds.")
+            print((
+                f"Processed {self.metrics['batches_processed']} batches "
+                f"of {self.batch_size} items (total {self.metrics['items_processed']}) "
+                f"in {end_time - start_time} seconds."
+            ))
             self.print_metrics()
 
     def __str__(self):
