@@ -267,7 +267,7 @@ class S3(Source):
             await self.queue.join()
 
 @dataclass
-class HuggingFaceSource(Source):
+class HuggingFace(Source):
     """
     A data source that uses the HuggingFace Datasets library.
     """
@@ -276,6 +276,7 @@ class HuggingFaceSource(Source):
     split: str
     config_name: Optional[str] = None
     sample_rate: float = 1.0
+    hf_api_key: Optional[str] = None
     parser: Parser = None
 
     def __str__(self):
@@ -293,6 +294,9 @@ class HuggingFaceSource(Source):
         Returns an iterator over parsed data.
         """
         import datasets
+        if self.hf_api_key:
+            import huggingface_hub
+            huggingface_hub.login(token=self.hf_api_key)
         handle = datasets.load_dataset(
             self.dataset_name, name=self.config_name, split=self.split, streaming=True
         )
