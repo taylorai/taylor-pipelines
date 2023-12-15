@@ -32,7 +32,7 @@ class Pipeline:
     batch_size: int = 25
     arguments: list[Argument] = field(default_factory=list)
     max_concurrent_batches: int = 100
-    status: Status = field(default_factory=Status)
+    status: Status = field(default_factory=lambda: Status("Initializing pipeline..."))
 
     # internal
     metrics: dict[str, Union[int, float]] = field(
@@ -174,18 +174,19 @@ class Pipeline:
         (Probably much faster when reading from S3).
         """
         print(self)
-        if not self.compiled:
-            self.compile_transforms(arguments)
-        start_time = time.time()
-        self.queue = asyncio.Queue()
-        self.semaphore = asyncio.Semaphore(self.max_concurrent_batches)
-        producer = asyncio.create_task(self.stream_batches())
-        consumer = asyncio.create_task(self.process_batches())
-        await asyncio.gather(producer, consumer)
-        await self.queue.join()
-        end_time = time.time()
-        print(f"Processed {self.metrics['batches_processed']} batches in {end_time - start_time} seconds.")
-        self.print_metrics()
+        with self.status:
+            if not self.compiled:
+                self.compile_transforms(arguments)
+            start_time = time.time()
+            self.queue = asyncio.Queue()
+            self.semaphore = asyncio.Semaphore(self.max_concurrent_batches)
+            producer = asyncio.create_task(self.stream_batches())
+            consumer = asyncio.create_task(self.process_batches())
+            await asyncio.gather(producer, consumer)
+            await self.queue.join()
+            end_time = time.time()
+            print(f"Processed {self.metrics['batches_processed']} batches in {end_time - start_time} seconds.")
+            self.print_metrics()
 
     def __str__(self):
         result = "== Pipeline ==\n"
