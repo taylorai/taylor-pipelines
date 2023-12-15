@@ -13,9 +13,9 @@ Parameterized Data Processing
 --------------------------------------
 The main purpose of Taylor Pipelines is to allow parameterized data processing with AI components for:
 
-   - **ML Training**: Experimentation with new features and models is critical for ML training. Taylor Pipelines allows you to quickly build a frontend for your data processing, so you can focus on the ML.
-   - **Structuring Unstructured Data**: Unstructured data, particularly text, doesn't have to be unusable. Run analytics on your unstructured data with Taylor Pipelines by classifying.
-   - **Data Augmentation**: Data augmentation is a powerful tool for rebalancing your data. Taylor Pipelines allows you to quickly build a frontend for your data processing, so you can focus on the ML.
+   - **ML Training**: Experimentation with new features and models is critical for ML training. Taylor Pipelines allows you to quickly process and segment data.
+   - **Structuring Unstructured Text**: Train on and structure your unstructured text by classifying free text.
+   - **Data Augmentation**: Taylor Pipelines allows you to embed, augment, and segment your data, so you can focus on the ML.
 
 See the below example: 
 
