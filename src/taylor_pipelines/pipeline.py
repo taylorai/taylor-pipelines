@@ -5,6 +5,7 @@ import multiprocessing as mp
 from dataclasses import dataclass, field
 from typing import Union, Optional, Literal
 
+from rich.status import Status
 import asyncio
 from .argument import Argument
 from .process import Transform, Filter, Map, Sink
@@ -30,11 +31,16 @@ class Pipeline:
     transforms: list[Transform] = field(default_factory=list)
     batch_size: int = 25
     arguments: list[Argument] = field(default_factory=list)
+    max_concurrent_batches: int = 100
+    status: Status = field(default_factory=Status)
+
+    # internal
     metrics: dict[str, Union[int, float]] = field(
         default_factory=lambda: {"items_parsed": 0, "batches_processed": 0}
     )
     compiled: bool = False
     queue: Optional[asyncio.Queue] = None
+    semaphore: Optional[asyncio.Semaphore] = None
 
     ## TODO: Add way to specify total maximum number of examples to process.
 
@@ -110,6 +116,12 @@ class Pipeline:
                 return
         raise ValueError(f"Transform {transform_name} not found.")
 
+    def update_status(self, message: str):
+        """
+        Updates the status bar.
+        """
+        self.status.update(message)
+
     async def apply_transforms(
         self, 
         batch: list[dict],
@@ -120,6 +132,8 @@ class Pipeline:
         """
         for transform in self.transforms:
             batch = await transform(batch, executor=executor)
+        self.metrics["batches_processed"] += 1
+        self.update_status(f"Processed {self.metrics['batches_processed']} batches")
         return batch
 
     async def stream_batches(self):
@@ -140,6 +154,7 @@ class Pipeline:
     async def process_batches(self):
         # print("Processing batches with max_workers", mp.cpu_count())
         # with concurrent.futures.ProcessPoolExecutor(max_workers=mp.cpu_count()) as pool:
+        tasks = []
         while True:
             batch = await self.queue.get()
             if batch is None:
@@ -147,10 +162,11 @@ class Pipeline:
                 self.queue.task_done()
                 break
             # print("got batch")
-            await self.apply_transforms(batch, executor=None) # executor=pool)
-            # await asyncio.sleep(0) # allow other tasks to run so the doesn't empty
-            self.metrics["batches_processed"] += 1
+            task = asyncio.create_task(self.apply_transforms(batch))
+            tasks.append(task)
             self.queue.task_done()
+
+        await asyncio.gather(*tasks)
 
     async def run(self, arguments: dict = {}):
         """
@@ -162,6 +178,7 @@ class Pipeline:
             self.compile_transforms(arguments)
         start_time = time.time()
         self.queue = asyncio.Queue()
+        self.semaphore = asyncio.Semaphore(self.max_concurrent_batches)
         producer = asyncio.create_task(self.stream_batches())
         consumer = asyncio.create_task(self.process_batches())
         await asyncio.gather(producer, consumer)
@@ -173,7 +190,6 @@ class Pipeline:
     def __str__(self):
         result = "== Pipeline ==\n"
         result += "↳ Source: " + str(self.source) + "\n"
-        result += "↳ Parser: " + str(self.source.parser.__class__.__name__) + "\n"
         result += f"↳ Transforms ({len(self.transforms)}):"
         for transform in self.transforms:
             result += "\n  "
@@ -215,7 +231,8 @@ class Pipeline:
     def print_metrics(self):
         result = "== Metrics ==\n"
         print("Pipeline:", self.metrics)
-        print("Parser:", self.source.parser.metrics)
+        if self.source.parser:
+            print("Parser:", self.source.parser.metrics)
         for t in self.transforms:
             if hasattr(t, "metrics"):
                 print(t.name, t.metrics)

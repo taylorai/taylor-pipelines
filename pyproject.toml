@@ -28,7 +28,8 @@ dependencies = [
     "s3fs==2023.12.1",
     "jinja2",
     "aiohttp",
-    "datasets"
+    "datasets>=2.15.0",
+    "python-dotenv"
 ]
 
 [tool.ruff]

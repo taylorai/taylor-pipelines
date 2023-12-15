@@ -275,6 +275,7 @@ class HuggingFace(Source):
     dataset_name: str
     split: str
     config_name: Optional[str] = None
+    streaming: bool = True
     sample_rate: float = 1.0
     hf_api_key: Optional[str] = None
     parser: Parser = None
@@ -298,7 +299,7 @@ class HuggingFace(Source):
             import huggingface_hub
             huggingface_hub.login(token=self.hf_api_key)
         handle = datasets.load_dataset(
-            self.dataset_name, name=self.config_name, split=self.split, streaming=True
+            self.dataset_name, name=self.config_name, split=self.split, streaming=self.streaming
         )
 
         for item in handle:
