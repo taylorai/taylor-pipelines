@@ -41,12 +41,12 @@ class TrainClassifier(Map):
 
     def print_metrics(self):
         print(f"=== Classification Metrics for {self.name} ===")
-        print(f"Accuracy on Last (Full) Batch: {self.metrics["accuracy"][-2]:.3f}")
+        print(f"Accuracy on Last (Full) Batch: {self.metrics['accuracy'][-2]:.3f}")
         for cls in self.idx2label:
             print(f"[Metrics for {cls}]")
-            print(f"  ↳ Precision: {self.metrics["per_class"][-2][cls]["precision"]:.3f}")
-            print(f"  ↳ Recall: {self.metrics["per_class"][-2][cls]["recall"]:.3f}")
-            print(f"  ↳ F1: {self.metrics["per_class"][-2][cls]["f1-score"]:.3f}")
+            print(f"  ↳ Precision: {self.metrics['per_class'][-2][cls]['precision']:.3f}")
+            print(f"  ↳ Recall: {self.metrics['per_class'][-2][cls]["recall"]:.3f}")
+            print(f"  ↳ F1: {self.metrics['per_class'][-2][cls]['f1-score']:.3f}")
 
     async def map(self, batch: list[dict], executor: concurrent.futures.Executor):
         X = [entry[self.input_field] for entry in batch]
