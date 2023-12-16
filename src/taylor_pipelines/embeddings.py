@@ -256,6 +256,6 @@ class ONNXEmbeddingModel(EmbeddingModelBase):
                     split_strategy=split_strategy,
                 )
             )
-            asyncio.sleep(0) # allow other tasks to run
+            await asyncio.sleep(0) # allow other tasks to run
 
         return np.array(result)
