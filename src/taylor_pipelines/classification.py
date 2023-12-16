@@ -33,6 +33,9 @@ class TrainClassifier(Map):
         if not os.path.exists("models"):
             os.mkdir("models")
 
+    def compile(self, **kwargs):
+        self.compiled = True
+
     async def map(self, batch: list[dict], executor: concurrent.futures.Executor):
         X = [entry[self.input_field] for entry in batch]
         y = [self.label2idx[entry[self.label_field]] for entry in batch]
