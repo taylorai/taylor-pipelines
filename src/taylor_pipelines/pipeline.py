@@ -30,7 +30,7 @@ class Pipeline:
     batch_size: int = 25
     arguments: list[Argument] = field(default_factory=list)
     max_concurrent_batches: int = 100
-    status: Status = field(default_factory=lambda: Status("Initializing pipeline..."))
+    status: Optional[Status] = field(init=False)
 
     # internal
     metrics: dict[str, Union[int, float]] = field(
@@ -184,21 +184,22 @@ class Pipeline:
         """
         Run the pipeline.
         """
+        print()
         print(self)
-        with self.status:
-            if not self.compiled:
-                self.status.update("Compiling transforms...")
+        if not self.compiled:
+                print("Compiling transforms...")
                 self.compile_transforms(arguments)
-            start_time = time.time()
-            self.queue = asyncio.Queue()
-            self.semaphore = asyncio.Semaphore(self.max_concurrent_batches)
-            self.status.update("Beginning to process data...")
+        start_time = time.time()
+        self.queue = asyncio.Queue()
+        self.semaphore = asyncio.Semaphore(self.max_concurrent_batches)
+        self.status = Status("Beginning to process data...")
+        with self.status:
             producer = asyncio.create_task(self.stream_batches())
             consumer = asyncio.create_task(self.process_batches())
             await asyncio.gather(producer, consumer)
             await self.queue.join()
             await self.flush_sinks()
-            end_time = time.time()
+        end_time = time.time()
         print(
             (
                 "\n* ===== RESULTS ===== *\n"
@@ -215,7 +216,7 @@ class Pipeline:
                 print(transform.name, transform.metrics)
 
     def __str__(self):
-        result = "== Pipeline ==\n"
+        result = "* === PIPELINE === *\n"
         result += "↳ Source: " + str(self.source) + "\n"
         result += f"↳ Transforms ({len(self.transforms)}):"
         for transform in self.transforms:
