@@ -1,13 +1,20 @@
 import os
 import numpy as np
-from typing import Union, Optional
+from typing import Union, Optional, Literal
 import concurrent.futures
 from .process import Map
-from sklearn.linear_model import PassiveAggressiveClassifier
+from functools import partial
+from sklearn.linear_model import PassiveAggressiveClassifier, SGDClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import classification_report
 from collections import Counter
 import joblib
 
+NAME_TO_MODEL = {
+    "passive_aggressive": PassiveAggressiveClassifier,
+    "logistic": partial(SGDClassifier, loss="log"),
+    "mlp": partial(MLPClassifier, solver="adam", hidden_layer_sizes=(768, 768)),
+}
 
 class TrainClassifier(Map):
     def __init__(
@@ -16,6 +23,7 @@ class TrainClassifier(Map):
         input_field: str, # should be embeddings or list of floats
         label_field: str, # should be string or int
         labels: list[Union[str, int]],
+        model: Literal["passive_aggressive", "logistic_regression", "mlp"] = "passive_aggressive",
         output_path: Optional[str] = None, # will use name if not provided
         optional: bool = False,
     ):
@@ -28,7 +36,7 @@ class TrainClassifier(Map):
         self.idx2label = {i: label for i, label in enumerate(labels)}
         self.input_field = input_field
         self.label_field = label_field
-        self.model = PassiveAggressiveClassifier()
+        self.model = NAME_TO_MODEL[model]()
         self.output_path = output_path or f"models/{name}"
         self.iters = 0
         self.metrics = {"accuracy": [], "per_class": []}
@@ -64,49 +72,37 @@ class TrainClassifier(Map):
         self.model.partial_fit(X, y, classes=range(len(self.label2idx)))
         self.iters += 1
         
-        joblib.dump(self.model, f"models/{self.output_path}_{self.iters}.joblib")
+        joblib.dump({
+            "model": self.model, 
+            "idx2label": self.idx2label,
+        }, f"models/{self.output_path}_{self.iters}.joblib")
 
+        return batch      
+
+class Classifier(Map):
+    def __init__(
+        self,
+        name: str,
+        input_field: str, # should be embeddings or list of floats
+        label_field: str, # should be string or int
+        model_path: str,
+        optional: bool = False,
+    ):
+        super().__init__(
+            name, 
+            description=f"Use a trained classifier to predict {label_field} from {input_field}.",
+            optional=optional
+        )
+        self.input_field = input_field
+        self.label_field = label_field
+        self.model = joblib.load(model_path)
+    
+    def compile(self, **kwargs):
+        self.compiled = True
+
+    async def map(self, batch: list[dict], executor: concurrent.futures.Executor):
+        X = [entry[self.input_field] for entry in batch]
+        y_pred = self.model["model"].predict(X)
+        for entry, label in zip(batch, y_pred):
+            entry[self.label_field] = self.model["idx2label"][label]
         return batch
-        
-
-class Classifier:
-    pass
-
-
-
-
-
-
-
-
-# def embed_text():
-#     pass
-
-
-# propensity_trainer = TrainClassifier(
-#     "propensity_to_buy",
-#     input_field="text_embedding",
-#     label_field="label",
-#     labels=["strong no", "weak no", "weak yes", "strong yes"],
-# )
-
-# propensity_classifier = Classifier(
-#     "propensity_to_buy", input_field="text_embedding", label_field="label"
-# )
-
-
-# trainer_pipeline = Pipeline(
-#     source=S3(),
-#     transforms=[
-#         embed_text,
-#         propensity_trainer,
-#     ],
-# )
-
-# inference_pipeline = Pipeline(
-#     source=S3(),
-#     transforms=[
-#         embed_text,
-#         propensity_classifier,
-#     ],
-# )
