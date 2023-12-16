@@ -199,20 +199,20 @@ class Pipeline:
             await self.queue.join()
             await self.flush_sinks()
             end_time = time.time()
-            print(
-                (
-                    "\n* ===== RESULTS ===== *\n"
-                    f"Processed {self.metrics['batches_processed']} batches "
-                    f"of {self.batch_size} items (total {self.metrics['items_processed']}) "
-                    f"in {end_time - start_time:.2f} seconds."
-                )
+        print(
+            (
+                "\n* ===== RESULTS ===== *\n"
+                f"Processed {self.metrics['batches_processed']} batches "
+                f"of {self.batch_size} items (total {self.metrics['items_processed']}) "
+                f"in {end_time - start_time:.2f} seconds."
             )
-            for t in self.transforms:
-                if hasattr(t, "print_metrics"):
-                    print(f"{t}")
-                    t.print_metrics()
-                elif hasattr(t, "metrics"):
-                    print(t.name, t.metrics)
+        )
+        for transform in self.transforms:
+            if hasattr(transform, "print_metrics"):
+                print(f"{transform}")
+                transform.print_metrics()
+            elif hasattr(transform, "metrics"):
+                print(transform.name, transform.metrics)
 
     def __str__(self):
         result = "== Pipeline ==\n"
