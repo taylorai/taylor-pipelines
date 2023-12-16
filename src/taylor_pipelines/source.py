@@ -22,10 +22,10 @@ import zstandard as zstd
 
 # use logger with timestamp
 import logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
 
 
 @dataclass
@@ -37,6 +37,7 @@ class File:
     filename: str
     content: Any
     # should we include metadata?
+
 
 class Parser(abc.ABC):
     """
@@ -95,6 +96,7 @@ class Source(abc.ABC):
     It should be able to return an async iterator (this allows other work
     to be done while waiting for I/O).
     """
+
     parser: Parser
 
     @property
@@ -117,6 +119,7 @@ def normalized_hash(item: str):
     hash_value = xxhash.xxh64(item).intdigest()
     return hash_value / float(2**64)
 
+
 @dataclass
 class S3(Source):
     # configuration things
@@ -129,7 +132,7 @@ class S3(Source):
     sample_rate: float = 1.0
     sample_level: Literal["file", "instance"] = "file"
     max_concurrent_downloads = 500
-    
+
     # internal things
     prefixes: list[str] = field(init=False, default_factory=list)
     session: AioSession = field(init=False)
@@ -142,14 +145,14 @@ class S3(Source):
             print("Prefix is None, so we're setting it to an empty string.")
             self.prefix = ""
             self.prefixes = [""]
-        
+
         # search for any glob characters: [], *, **, ?
         elif re.search(r"[\*\?\[\]]", self.prefix):
             print("Prefix contains glob characters, using s3fs to expand.")
             import s3fs
+
             fs = s3fs.S3FileSystem(
-                key=self.access_key_id,
-                secret=self.secret_access_key
+                key=self.access_key_id, secret=self.secret_access_key
             )
             glob_str = self.bucket.rstrip("/") + "/" + self.prefix.lstrip("/")
             prefixes = fs.glob(glob_str)
@@ -169,7 +172,9 @@ class S3(Source):
     def __str__(self):
         result = f"🪣 [S3 Source]: s3://{self.bucket}{('/' + self.prefix) if self.prefix else ''}"
         result += f"\n ↳ 📦 [Parser]: {self.parser}"
-        result += f"\n ↳ 📈 [Sampling]: {self.sample_rate * 100}% of {self.sample_level}s"
+        result += (
+            f"\n ↳ 📈 [Sampling]: {self.sample_rate * 100}% of {self.sample_level}s"
+        )
         # compression
         result += f"\n ↳ 🗜 [Compression]: {self.compression}"
         return result
@@ -206,18 +211,20 @@ class S3(Source):
     async def fetch_chunk(self, client, key, index, byte_range):
         # fetch without decompressing (you can only decompress the entire file)
         async with self.semaphore:
-            response = await client.get_object(Bucket=self.bucket, Key=key, Range=byte_range)
-            async with response['Body'] as stream:
+            response = await client.get_object(
+                Bucket=self.bucket, Key=key, Range=byte_range
+            )
+            async with response["Body"] as stream:
                 data = await stream.read()
             print(f"Fetched chunk {index} of {key}.")
             return data
-        
+
     async def fetch_object(self, client, key, size):
         # if size is under 10MB, just fetch it directly
         if size < 10_000_000:
             async with self.semaphore:
                 response = await client.get_object(Bucket=self.bucket, Key=key)
-                async with response['Body'] as stream:
+                async with response["Body"] as stream:
                     data = await stream.read()
                     decompressed_data = self.decompress(data)
                     await self.queue.put(File(filename=key, content=decompressed_data))
@@ -225,30 +232,40 @@ class S3(Source):
         else:
             print("Fetching large file in chunks.")
             chunk_size = 3_000_000
-            byte_ranges = [f"bytes={i}-{i+chunk_size-1}" for i in range(0, size, chunk_size)]
-            tasks = [asyncio.create_task(self.fetch_chunk(client, key, idx, byte_range=br)) for idx, br in enumerate(byte_ranges)]
+            byte_ranges = [
+                f"bytes={i}-{i+chunk_size-1}" for i in range(0, size, chunk_size)
+            ]
+            tasks = [
+                asyncio.create_task(self.fetch_chunk(client, key, idx, byte_range=br))
+                for idx, br in enumerate(byte_ranges)
+            ]
             chunks = await asyncio.gather(*tasks)
             decompressed_data = self.decompress(b"".join(chunks))
             await self.queue.put(File(filename=key, content=decompressed_data))
-                
-            
+
     async def __aiter__(self) -> AsyncIterator[File]:
         """
         Returns an iterator over S3 objects.
         """
         self.queue = asyncio.Queue()
-        self.semaphore = asyncio.Semaphore(self.max_concurrent_downloads) # limit to 100 concurrent requests
+        self.semaphore = asyncio.Semaphore(
+            self.max_concurrent_downloads
+        )  # limit to 100 concurrent requests
         async with self.session.create_client(
             "s3",
             aws_access_key_id=self.access_key_id,
             aws_secret_access_key=self.secret_access_key,
         ) as client:
-            tasks = [asyncio.create_task(self.paginate_and_fetch(client, prefix)) for prefix in self.prefixes]
+            tasks = [
+                asyncio.create_task(self.paginate_and_fetch(client, prefix))
+                for prefix in self.prefixes
+            ]
             producer = asyncio.gather(*tasks)
 
             def done_callback(future):
                 print("Done streaming files from S3.")
                 self.queue.put_nowait(None)
+
             producer.add_done_callback(done_callback)
 
             while True:
@@ -263,9 +280,10 @@ class S3(Source):
                             continue
                     yield item
                 self.queue.task_done()
-            
+
             await producer
             await self.queue.join()
+
 
 @dataclass
 class HuggingFace(Source):
@@ -290,18 +308,22 @@ class HuggingFace(Source):
         result += f"\n ↳ 📈 [Sampling]: {self.sample_rate * 100}% of examples"
         return result
 
-
     def __iter__(self) -> Iterator[dict]:
         """
         Returns an iterator over parsed data.
         """
         import datasets
+
         if self.hf_api_key:
             import huggingface_hub
+
             huggingface_hub.login(token=self.hf_api_key)
 
         handle = datasets.load_dataset(
-            self.dataset_name, name=self.config_name, split=self.split, streaming=self.streaming
+            self.dataset_name,
+            name=self.config_name,
+            split=self.split,
+            streaming=self.streaming,
         )
 
         if self.sample_rate < 1.0:
@@ -314,7 +336,9 @@ class HuggingFace(Source):
                     )
                     data = res.json()
                     cn = self.config_name if self.config_name else "default"
-                    dataset_length = data["dataset_info"][cn]["splits"][self.split]["num_examples"]
+                    dataset_length = data["dataset_info"][cn]["splits"][self.split][
+                        "num_examples"
+                    ]
                 except KeyError as e:
                     print("Can't sample by example because dataset length is unknown.")
                     raise e
@@ -333,4 +357,3 @@ class HuggingFace(Source):
         for item in self:
             yield item
             await asyncio.sleep(0.01)
-            

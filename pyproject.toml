@@ -32,7 +32,8 @@ dependencies = [
     "datasets",
     "python-dotenv",
     "onnxruntime",
-    "transformers"
+    "transformers",
+    "scikit-learn==1.3.2"
 ]
 
 [tool.ruff]

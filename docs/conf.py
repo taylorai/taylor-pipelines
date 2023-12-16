@@ -1,8 +1,8 @@
 import sys
 import os
 
-posthog_key = os.environ.get('NEXT_PUBLIC_POSTHOG_KEY', '')
-posthog_host = os.environ.get('NEXT_PUBLIC_POSTHOG_HOST', 'https://app.posthog.com')
+posthog_key = os.environ.get("NEXT_PUBLIC_POSTHOG_KEY", "")
+posthog_host = os.environ.get("NEXT_PUBLIC_POSTHOG_HOST", "https://app.posthog.com")
 
 
 sys.path.insert(0, os.path.abspath("../src"))
@@ -43,6 +43,7 @@ html_context = {
     </script>
     """
 }
+
 
 # Ensure that the extra HTML is added to every page
 def setup(app):

@@ -12,11 +12,8 @@ from .process import Transform, Filter, Map, Sink
 from .source import Source, S3, Parser, JSONLParser, ParquetParser
 
 
-PARSERS = {
-    "jsonl": JSONLParser,
-    "parquet": ParquetParser,
-    "csv": None
-}
+PARSERS = {"jsonl": JSONLParser, "parquet": ParquetParser, "csv": None}
+
 
 @dataclass
 class Pipeline:
@@ -36,7 +33,11 @@ class Pipeline:
 
     # internal
     metrics: dict[str, Union[int, float]] = field(
-        default_factory=lambda: {"batches_streamed": 0, "batches_processed": 0, "items_processed": 0}
+        default_factory=lambda: {
+            "batches_streamed": 0,
+            "batches_processed": 0,
+            "items_processed": 0,
+        }
     )
     compiled: bool = False
     queue: Optional[asyncio.Queue] = None
@@ -51,15 +52,15 @@ class Pipeline:
         self.output_directory = output_directory
 
     def set_s3_data_source(
-        self, 
-        bucket: str, 
-        prefix: str, 
+        self,
+        bucket: str,
+        prefix: str,
         access_key_id: str,
         secret_access_key: str,
         file_type: Literal["jsonl", "parquet", "csv"],
         sample_rate: float = 1.0,
         sample_level: Literal["file", "instance"] = "file",
-        compression: Literal["lz4", "zstd", None] = None
+        compression: Literal["lz4", "zstd", None] = None,
     ):
         """
         Sets the data source to an S3 bucket.
@@ -78,7 +79,7 @@ class Pipeline:
             parser=parser,
             compression=compression,
             sample_rate=sample_rate,
-            sample_level=sample_level
+            sample_level=sample_level,
         )
 
     def compile_transforms(self, arguments: dict):
@@ -92,7 +93,7 @@ class Pipeline:
                         self.remove_transform(transform.name)
                     except ValueError:
                         print("Couldn't disable transform", transform.name)
-                
+
         for transform in self.transforms:
             if isinstance(transform, Sink):
                 if self.output_directory:
@@ -101,7 +102,7 @@ class Pipeline:
                 transform.compile(**arguments[transform.name])
             else:
                 transform.compile()
-            
+
         self.compiled = True
 
     def remove_transform(self, transform_name: str):
@@ -124,9 +125,7 @@ class Pipeline:
         self.status.update(message)
 
     async def apply_transforms(
-        self, 
-        batch: list[dict],
-        executor: concurrent.futures.Executor = None
+        self, batch: list[dict], executor: concurrent.futures.Executor = None
     ) -> list[dict]:
         """
         Applies the transforms to a batch of data.
@@ -199,11 +198,13 @@ class Pipeline:
             await self.queue.join()
             await self.flush_sinks()
             end_time = time.time()
-            print((
-                f"Processed {self.metrics['batches_processed']} batches "
-                f"of {self.batch_size} items (total {self.metrics['items_processed']}) "
-                f"in {end_time - start_time} seconds."
-            ))
+            print(
+                (
+                    f"Processed {self.metrics['batches_processed']} batches "
+                    f"of {self.batch_size} items (total {self.metrics['items_processed']}) "
+                    f"in {end_time - start_time} seconds."
+                )
+            )
             self.print_metrics()
 
     def __str__(self):
