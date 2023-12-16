@@ -201,26 +201,25 @@ class Pipeline:
             end_time = time.time()
             print(
                 (
+                    "\n* ===== RESULTS ===== *\n"
                     f"Processed {self.metrics['batches_processed']} batches "
                     f"of {self.batch_size} items (total {self.metrics['items_processed']}) "
-                    f"in {end_time - start_time} seconds."
+                    f"in {end_time - start_time:.2f} seconds."
                 )
             )
-            self.print_metrics()
+            for t in self.transforms:
+                if hasattr(t, "print_metrics"):
+                    print(f"{t}")
+                    t.print_metrics()
+                elif hasattr(t, "metrics"):
+                    print(t.name, t.metrics)
 
     def __str__(self):
         result = "== Pipeline ==\n"
         result += "↳ Source: " + str(self.source) + "\n"
         result += f"↳ Transforms ({len(self.transforms)}):"
         for transform in self.transforms:
-            result += "\n  "
-            if isinstance(transform, Filter):
-                result += "⛔️ "
-            elif isinstance(transform, Map):
-                result += "🔀 "
-            elif isinstance(transform, Sink):
-                result += "💾 "
-            result += f"{transform}"
+            result += f"\n  {transform}"
         return result
 
     def get_arguments(self):
@@ -248,15 +247,3 @@ class Pipeline:
             pipeline_args["transforms"].append(transform_spec)
 
         return pipeline_args
-
-    def print_metrics(self):
-        result = "\n* ===== Metrics ===== *\n"
-        print("Pipeline:", self.metrics)
-        if self.source.parser:
-            print("Parser:", self.source.parser.metrics)
-        for t in self.transforms:
-            if hasattr(t, "print_metrics"):
-                t.print_metrics()
-            elif hasattr(t, "metrics"):
-                print(t.name, t.metrics)
-        return result

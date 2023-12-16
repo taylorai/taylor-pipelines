@@ -97,7 +97,17 @@ class Transform(abc.ABC):
         raise NotImplementedError
 
     def __str__(self):
-        result = self.name + f" ({self.__class__.__name__})"
+        result = ""
+        if isinstance(self, Filter):
+            result += "⛔️ "
+        elif isinstance(self, LLMMap):
+            result += "🤖 "
+        elif isinstance(self, Map):
+            result += "🔀 "
+        elif isinstance(self, Sink):
+            result += "💾 "
+        result += self.name
+        result += f" ({self.__class__.__name__})"
         for name, argument in self.arguments.items():
             result += f"\n    ↳ {argument.__class__.__name__}: {name}"
             if argument.value is not None:
