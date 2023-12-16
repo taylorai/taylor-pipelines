@@ -45,7 +45,7 @@ class TrainClassifier(Map):
         for cls in self.idx2label:
             print(f"[Metrics for {cls}]")
             print(f"  ↳ Precision: {self.metrics['per_class'][-2][cls]['precision']:.3f}")
-            print(f"  ↳ Recall: {self.metrics['per_class'][-2][cls]["recall"]:.3f}")
+            print(f"  ↳ Recall: {self.metrics['per_class'][-2][cls]['recall']:.3f}")
             print(f"  ↳ F1: {self.metrics['per_class'][-2][cls]['f1-score']:.3f}")
 
     async def map(self, batch: list[dict], executor: concurrent.futures.Executor):
