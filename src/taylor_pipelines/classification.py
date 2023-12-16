@@ -11,7 +11,7 @@ from collections import Counter
 import joblib
 
 NAME_TO_MODEL = {
-    "passive_aggressive": PassiveAggressiveClassifier,
+    "passive_aggressive": partial(PassiveAggressiveClassifier, average=True),
     "logistic": partial(SGDClassifier, loss="log"),
     "mlp": partial(MLPClassifier, solver="adam", hidden_layer_sizes=(768, 768)),
 }
@@ -75,7 +75,7 @@ class TrainClassifier(Map):
         joblib.dump({
             "model": self.model, 
             "idx2label": self.idx2label,
-        }, f"models/{self.output_path}_{self.iters}.joblib")
+        }, f"models/{self.output_path}.joblib")
 
         return batch      
 
