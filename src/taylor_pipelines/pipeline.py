@@ -250,11 +250,13 @@ class Pipeline:
         return pipeline_args
 
     def print_metrics(self):
-        result = "== Metrics ==\n"
+        result = "\n* ===== Metrics ===== *\n"
         print("Pipeline:", self.metrics)
         if self.source.parser:
             print("Parser:", self.source.parser.metrics)
         for t in self.transforms:
-            if hasattr(t, "metrics"):
-                print(t.name, json.dumps(t.metrics, indent=2))
+            if hasattr(t, "print_metrics"):
+                t.print_metrics()
+            elif hasattr(t, "metrics"):
+                print(t.name, t.metrics)
         return result
