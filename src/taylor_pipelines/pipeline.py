@@ -1,5 +1,6 @@
 import os
 import time
+import json
 import concurrent.futures
 import multiprocessing as mp
 from dataclasses import dataclass, field
@@ -255,5 +256,5 @@ class Pipeline:
             print("Parser:", self.source.parser.metrics)
         for t in self.transforms:
             if hasattr(t, "metrics"):
-                print(t.name, t.metrics)
+                print(t.name, json.dumps(t.metrics, indent=2))
         return result

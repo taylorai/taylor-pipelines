@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from typing import Union, Optional
 import concurrent.futures
 from .process import Map
@@ -44,8 +45,10 @@ class TrainClassifier(Map):
         try:
             y_pred = self.model.predict(X)
             accuracy = sum(y_pred == y) / len(y)
-            report = classification_report(y, y_pred, output_dict=True)
-            self.metrics["per_class"].append(report)
+            report = classification_report(y, y_pred, output_dict=True, zero_division=np.nan)
+            self.metrics["per_class"].append({
+                label: report[str(self.label2idx[label])] for label in self.label2idx
+            })
             self.metrics["accuracy"].append(accuracy)
         except:
             pass
