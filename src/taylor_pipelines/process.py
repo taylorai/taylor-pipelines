@@ -469,7 +469,7 @@ class LocalEmbeddingMap(Map):
             raise ValueError("LocalEmbeddingMap output field is None.")
         
         texts = [item[self.input_field] for item in batch]
-        embeddings = self.model.embed_batch(texts, normalize=self.normalize)
+        embeddings = await self.model.embed_batch(texts, normalize=self.normalize)
         return [
             {**item, self.output_field: embedding} for item, embedding in zip(batch, embeddings)
         ]
