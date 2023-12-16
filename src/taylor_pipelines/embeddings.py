@@ -2,14 +2,13 @@ import os
 import asyncio
 from abc import ABC, abstractmethod
 from typing import Literal, Union
-import json
 import numpy as np
 import onnxruntime as ort
 from huggingface_hub import hf_hub_download
 from transformers import AutoTokenizer
-import contextlib
 from typing import Optional
 import shutil
+
 
 class EmbeddingModelBase(ABC):
     def __init__(self):
@@ -186,9 +185,11 @@ class ONNXEmbeddingModel(EmbeddingModelBase):
     def __init__(
         self,
         local_onnx_path: str,
-        huggingface_repo: str = None, # used for tokenizer, and model not found at local_onnx_path 
-        huggingface_path_in_repo: Optional[str] = None, # used if model not found at local_onnx_path
-        max_length = 512
+        huggingface_repo: str = None,  # used for tokenizer, and model not found at local_onnx_path
+        huggingface_path_in_repo: Optional[
+            str
+        ] = None,  # used if model not found at local_onnx_path
+        max_length=512,
     ):
         super().__init__()
         self.tokenizer = AutoTokenizer.from_pretrained(huggingface_repo)
@@ -198,8 +199,7 @@ class ONNXEmbeddingModel(EmbeddingModelBase):
         if not os.path.exists(local_onnx_path):
             # download
             local_path = hf_hub_download(
-                repo_id=huggingface_repo,
-                filename=huggingface_path_in_repo
+                repo_id=huggingface_repo, filename=huggingface_path_in_repo
             )
             shutil.copyfile(local_path, local_onnx_path, follow_symlinks=True)
             os.remove(local_path)
@@ -256,6 +256,6 @@ class ONNXEmbeddingModel(EmbeddingModelBase):
                     split_strategy=split_strategy,
                 )
             )
-            await asyncio.sleep(0) # allow other tasks to run
+            await asyncio.sleep(0)  # allow other tasks to run
 
         return np.array(result)

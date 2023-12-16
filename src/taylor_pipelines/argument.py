@@ -25,7 +25,9 @@ class Argument(abc.ABC):
         value: Optional[Any] = None,
     ):
         if required and default:
-            print("Warning: required argument has default value. This should only be done as guidance for the user.")
+            print(
+                "Warning: required argument has default value. This should only be done as guidance for the user."
+            )
         self.name = name
         self.description = description
         self.required = required
@@ -60,6 +62,7 @@ class MultipleChoiceArgument(Argument):
     A multiple choice argument is an argument that can take one of a set of
     string values.
     """
+
     choices: list[str]
 
     def __init__(
@@ -100,6 +103,7 @@ class StringArgument(Argument):
     """
     A string argument is an argument that takes a string value.
     """
+
     valid_regex: str = None
 
     def __init__(
@@ -124,7 +128,7 @@ class StringArgument(Argument):
         if self.valid_regex is not None:
             return re.match(self.valid_regex, self.value) is not None
         return True
-    
+
     def to_json(self) -> dict:
         """
         Returns a JSON representation of the argument.
@@ -138,11 +142,13 @@ class StringArgument(Argument):
             "valid_regex": self.valid_regex,
             "type": "StringArgument",
         }
-    
+
+
 class ListArgument(Argument):
     """
     A list argument is a list of strings (for now).
     """
+
     valid_regex: str = None
 
     def __init__(
@@ -171,7 +177,7 @@ class ListArgument(Argument):
                 if re.match(self.valid_regex, item) is None:
                     return False
         return True
-    
+
     def to_json(self) -> dict:
         """
         Returns a JSON representation of the argument.
@@ -234,10 +240,12 @@ class IntegerArgument(Argument):
             "type": "IntegerArgument",
         }
 
+
 class BooleanArgument(Argument):
     """
     A boolean argument is an argument that takes a boolean value.
     """
+
     def __init__(
         self,
         name: str,
@@ -268,10 +276,12 @@ class BooleanArgument(Argument):
             "type": "BooleanArgument",
         }
 
+
 class FloatArgument(Argument):
     """
     A float argument is an argument that takes a float value.
     """
+
     min_value: float = None
     max_value: float = None
 
@@ -287,7 +297,7 @@ class FloatArgument(Argument):
             return False
         self.value = float(self.value)
         return True
-    
+
     def to_json(self) -> dict:
         """
         Returns a JSON representation of the argument.
@@ -302,7 +312,8 @@ class FloatArgument(Argument):
             "max_value": self.max_value,
             "type": "FloatArgument",
         }
-    
+
+
 # @dataclass
 # class DateArgument(Argument):
 #     """

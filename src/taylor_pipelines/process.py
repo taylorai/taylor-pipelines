@@ -41,7 +41,7 @@ class Transform(abc.ABC):
         description: str = "",
         arguments: list[Argument] = [],
         optional: bool = False,
-        source_code: Optional[str] = None
+        source_code: Optional[str] = None,
     ):
         self.name = name
         self.description = description
@@ -129,7 +129,9 @@ class Filter(Transform):
         """
         raise NotImplementedError
 
-    async def __call__(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
+    async def __call__(
+        self, batch: list[dict], executor: concurrent.futures.Executor = None
+    ) -> list[dict]:
         self.metrics["items_in"] += len(batch)
         filtered = await self.filter(batch, executor=executor)
         self.metrics["items_out"] += len(filtered)
@@ -186,7 +188,9 @@ class FunctionFilter(Filter):
             self.can_run_in_pool = False
         self.compiled = True
 
-    async def filter(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
+    async def filter(
+        self, batch: list[dict], executor: concurrent.futures.Executor = None
+    ) -> list[dict]:
         """
         Filters a batch of data.
         """
@@ -197,7 +201,9 @@ class FunctionFilter(Filter):
             tasks = [
                 loop.run_in_executor(executor, self.predicate, item) for item in batch
             ]
-            return [item for item, keep in zip(batch, await asyncio.gather(*tasks)) if keep]
+            return [
+                item for item, keep in zip(batch, await asyncio.gather(*tasks)) if keep
+            ]
         else:
             return list(filter(self.predicate, batch))
 
@@ -213,18 +219,26 @@ class Map(Transform):
     compiled: bool
 
     def __init__(
-        self, name: str, description: str = "", arguments: list[Argument] = [], optional: bool = False
+        self,
+        name: str,
+        description: str = "",
+        arguments: list[Argument] = [],
+        optional: bool = False,
     ):
         super().__init__(name, description, arguments, optional)
 
     @abc.abstractmethod
-    async def map(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
+    async def map(
+        self, batch: list[dict], executor: concurrent.futures.Executor = None
+    ) -> list[dict]:
         """
         Maps a batch of data.
         """
         raise NotImplementedError
 
-    async def __call__(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
+    async def __call__(
+        self, batch: list[dict], executor: concurrent.futures.Executor = None
+    ) -> list[dict]:
         return await self.map(batch, executor=executor)
 
 
@@ -272,7 +286,9 @@ class FunctionMap(Map):
             self.can_run_in_pool = False
         self.compiled = True
 
-    async def map(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
+    async def map(
+        self, batch: list[dict], executor: concurrent.futures.Executor = None
+    ) -> list[dict]:
         """
         Maps a batch of data.
         """
@@ -296,6 +312,7 @@ class LLMMap(Map):
     input dataset that vary per data sample should be doubly-nested: {{ "{{ field_name }}" }}.
     At compilation time, these will unnest, and then will be filled in per-example.
     """
+
     def __init__(
         self,
         name: str,
@@ -337,19 +354,23 @@ class LLMMap(Map):
         env = ImmutableSandboxedEnvironment()
         try:
             prompt_env = env.from_string(self.prompt_template)
-            prompt_template_args = meta.find_undeclared_variables(env.parse(self.prompt_template))
-            self.prompt = prompt_env.render(**{
-                k: all_args[k] for k in prompt_template_args
-            })
+            prompt_template_args = meta.find_undeclared_variables(
+                env.parse(self.prompt_template)
+            )
+            self.prompt = prompt_env.render(
+                **{k: all_args[k] for k in prompt_template_args}
+            )
         except jinja2.exceptions.TemplateSyntaxError as e:
             raise ValueError(f"Invalid prompt template: {e}")
-        
+
         try:
             system_prompt_env = env.from_string(self.system_prompt_template)
-            system_prompt_template_args = meta.find_undeclared_variables(env.parse(self.system_prompt_template))
-            self.system_prompt = system_prompt_env.render(**{
-                k: all_args[k] for k in system_prompt_template_args
-            })
+            system_prompt_template_args = meta.find_undeclared_variables(
+                env.parse(self.system_prompt_template)
+            )
+            self.system_prompt = system_prompt_env.render(
+                **{k: all_args[k] for k in system_prompt_template_args}
+            )
         except jinja2.exceptions.TemplateSyntaxError as e:
             raise ValueError(f"Invalid system prompt template: {e}")
 
@@ -381,9 +402,15 @@ class LLMMap(Map):
                 ) as response:
                     if response.status != 200:
                         text = await response.text()
-                        print("Got non-200 response: ", text, "Prompt that led to this: ", prompt[:150] + "[...]", flush=True)
+                        print(
+                            "Got non-200 response: ",
+                            text,
+                            "Prompt that led to this: ",
+                            prompt[:150] + "[...]",
+                            flush=True,
+                        )
                         return None
-                    
+
                     response = await response.json()
                     return response["choices"][0]["message"]["content"]
                     # except Exception as e:
@@ -391,8 +418,10 @@ class LLMMap(Map):
             except asyncio.TimeoutError as e:
                 print("Timeout occurred. Returning None.")
                 return None
-        
-    async def map(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
+
+    async def map(
+        self, batch: list[dict], executor: concurrent.futures.Executor = None
+    ) -> list[dict]:
         """
         Gets completions for a batch of data. We don't use an executor, as LLM completions are network-bound
         and asyncio is more than sufficient.
@@ -403,47 +432,65 @@ class LLMMap(Map):
             raise ValueError("LLMMap prompt is None.")
         if self.system_prompt is None:
             raise ValueError("LLMMap system prompt is None.")
-        
+
         env = ImmutableSandboxedEnvironment()
-        prompt_args = meta.find_undeclared_variables(env.parse(self.prompt)) # only has holes left for per-item fields
-        prompts = [env.from_string(self.prompt).render(**{k: item[k] for k in prompt_args}) for item in batch]
+        prompt_args = meta.find_undeclared_variables(
+            env.parse(self.prompt)
+        )  # only has holes left for per-item fields
+        prompts = [
+            env.from_string(self.prompt).render(**{k: item[k] for k in prompt_args})
+            for item in batch
+        ]
         for prompt in prompts:
             assert len(prompt) > 0, "Prompt is empty."
         tasks = []
         for prompt in prompts:
-            tasks.append(asyncio.create_task(self._get_completion(prompt, self.system_prompt)))
+            tasks.append(
+                asyncio.create_task(self._get_completion(prompt, self.system_prompt))
+            )
 
         completions = await asyncio.gather(*tasks)
-        
+
         return [
-            {**item, self.output_field: completion} for item, completion in zip(batch, completions)
+            {**item, self.output_field: completion}
+            for item, completion in zip(batch, completions)
         ]
-    
+
+
 class APIEmbeddingMap(Map):
     """
     Compute text embedding on a field in a batch of data and put the output in a new field.
     This one is for an OpenAI-compatible server. Use LocalEmbeddingMap to compute locally.
     """
+
     pass
+
 
 class LocalEmbeddingMap(Map):
     """
     Compute text embedding on a field in a batch of data and put the output in a new field.
     This one is for a local server. Use APIEmbeddingMap to compute remotely.
     """
+
     def __init__(
         self,
         name: str,
         input_field: str,
         output_field: str,
         local_onnx_path: str,
-        huggingface_repo: str = None, # used for tokenizer, and model not found at local_onnx_path 
-        huggingface_path_in_repo: Optional[str] = None, # used if model not found at local_onnx_path
+        huggingface_repo: str = None,  # used for tokenizer, and model not found at local_onnx_path
+        huggingface_path_in_repo: Optional[
+            str
+        ] = None,  # used if model not found at local_onnx_path
         max_length=512,
         normalize=True,
         optional: bool = False,
     ):
-        super().__init__(name, description=f"Compute embeddings on {input_field} and put them in {output_field}.", optional=optional)
+        super().__init__(
+            name,
+            description=f"Compute embeddings on {input_field} and put them in {output_field}.",
+            optional=optional,
+        )
         self.input_field = input_field
         self.output_field = output_field
         self.normalize = normalize
@@ -451,13 +498,15 @@ class LocalEmbeddingMap(Map):
             local_onnx_path=local_onnx_path,
             huggingface_repo=huggingface_repo,
             huggingface_path_in_repo=huggingface_path_in_repo,
-            max_length=max_length
+            max_length=max_length,
         )
 
     def compile(self, **kwargs):
         self.compiled = True
 
-    async def map(self, batch: list[dict], executor: concurrent.futures.Executor = None) -> list[dict]:
+    async def map(
+        self, batch: list[dict], executor: concurrent.futures.Executor = None
+    ) -> list[dict]:
         """
         Gets embeddings for a batch of data.
         """
@@ -467,14 +516,13 @@ class LocalEmbeddingMap(Map):
             raise ValueError("LocalEmbeddingMap input field is None.")
         if self.output_field is None:
             raise ValueError("LocalEmbeddingMap output field is None.")
-        
+
         texts = [item[self.input_field] for item in batch]
         embeddings = await self.model.embed_batch(texts, normalize=self.normalize)
         return [
-            {**item, self.output_field: embedding} for item, embedding in zip(batch, embeddings)
+            {**item, self.output_field: embedding}
+            for item, embedding in zip(batch, embeddings)
         ]
-
-    
 
 
 class Sink(Transform):
@@ -485,6 +533,7 @@ class Sink(Transform):
     sink writes to a file, in which case paths will be relative to
     the output directory.
     """
+
     name: str
     description: Optional[str]
     output_directory: Optional[str]
@@ -507,7 +556,7 @@ class Sink(Transform):
         Writes a batch of data.
         """
         raise NotImplementedError
-    
+
     @abc.abstractmethod
     async def flush(self):
         """
@@ -515,7 +564,9 @@ class Sink(Transform):
         """
         pass
 
-    async def __call__(self, batch: list[dict], executor: concurrent.futures.Executor = None):
+    async def __call__(
+        self, batch: list[dict], executor: concurrent.futures.Executor = None
+    ):
         await self.write(batch)
         return batch
 
@@ -524,16 +575,17 @@ class JSONLSink(Sink):
     """
     A sink that writes a batch of data to a JSONL file.
     """
+
     output_file: str
 
     def __init__(
-        self, 
-        name: str, 
+        self,
+        name: str,
         output_file: str,
         description: str = "",
         arguments: list[Argument] = [],
         optional: bool = False,
-        max_buffer_size: int = 100000
+        max_buffer_size: int = 100000,
     ):
         super().__init__(name, description, arguments, optional)
         self.output_file = output_file
@@ -557,7 +609,6 @@ class JSONLSink(Sink):
             for item in self.buffer:
                 await f.write(json_tricks.dumps(item, primitives=True) + "\n")
         self.buffer = []
-        
 
     async def write(self, batch: list[dict]):
         """
@@ -572,4 +623,3 @@ class JSONLSink(Sink):
         Flushes any remaining data to disk.
         """
         await self._flush_buffer()
-        

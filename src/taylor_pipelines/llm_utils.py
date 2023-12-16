@@ -3,11 +3,13 @@ import asyncio
 from dataclasses import dataclass
 from typing import Callable
 
+
 @dataclass
 class Model:
     """
     Definition of a model that an AsyncLLMEngine can route requests to.
     """
+
     model_name: str
     api_base: str
     api_key: str
@@ -16,21 +18,23 @@ class Model:
     max_tokens_per_minute: int
     tokenizer: Callable
 
+
 @dataclass
 class APIRequest:
     """
     Definition of an API request.
     """
+
     messages: list[dict]
     temperature: float
     retries_left: int
-    
 
 
 class AsyncModelEngine:
     """
     This class is responsible for handling global state for one API model.
     """
+
     def __init__(self, model_spec: Model):
         self.model_spec = model_spec
         self.tokenizer = model_spec.tokenizer
@@ -48,7 +52,7 @@ class AsyncModelEngine:
         future = asyncio.get_running_loop().create_future()
         await self.queue.put((request, future))
         return future
-    
+
     async def process_requests(self):
         while True:
             request, future = await self.queue.get()
@@ -63,6 +67,7 @@ class AsyncModelEngine:
     async def process_request(self, request):
         # Implement your API request processing logic here
         pass
+
 
 class AsyncLLMGateway:
     """
