@@ -313,6 +313,47 @@ class FunctionMap(Map):
         else:
             return list(map(self.function, batch))
 
+class Reducer(Map):
+    """
+    Map that uses each batch of data to update some internal metrics/state,
+    without modifying the data itself.
+    """
+    def __init__(
+        self,
+        name: str,
+        reducer: Callable[[dict, dict], dict], # takes in batch and current state, returns new state
+        description: str = "",
+        arguments: list[Argument] = [],
+        optional: bool = False,
+    ):
+        super().__init__(name, description, arguments, optional)
+        self.reducer = reducer
+        self.state = None
+
+    def compile(self, **kwargs):
+        """
+        Compiles the filter with provided public Arguments.
+        """
+        self.set_arguments(**kwargs)
+        self.reducer = functools.partial(self.reducer, **self.args_to_kwargs())
+        self.compiled = True
+
+    def print_metrics(self):
+        """
+        Prints metrics.
+        """
+        print(f"=== Metrics for {self.name} ===")
+        print(self.state)
+    
+    async def map(
+        self, batch: list[dict], executor: concurrent.futures.Executor = None
+    ) -> list[dict]:
+        """
+        Maps a batch of data.
+        """
+        self.state = self.reducer(batch, self.state)
+        return batch
+
 
 class LLMMap(Map):
     """
