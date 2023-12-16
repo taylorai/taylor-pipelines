@@ -3,6 +3,7 @@ from typing import Union, Optional
 import concurrent.futures
 from .process import Map
 from sklearn.linear_model import PassiveAggressiveClassifier
+from sklearn.metrics import classification_report
 from collections import Counter
 import joblib
 
@@ -29,7 +30,7 @@ class TrainClassifier(Map):
         self.model = PassiveAggressiveClassifier()
         self.output_path = output_path or f"models/{name}"
         self.iters = 0
-        self.metrics = {"accuracy": [], "accuracy_by_class": []}
+        self.metrics = {"accuracy": [], "per_class": []}
 
         if not os.path.exists("models"):
             os.mkdir("models")
@@ -43,21 +44,15 @@ class TrainClassifier(Map):
         try:
             y_pred = self.model.predict(X)
             accuracy = sum(y_pred == y) / len(y)
-            counts_by_class = Counter(y)
-            accuracy_by_class = {label: None for label in self.label2idx}
-            for label, count in counts_by_class.items():
-                correct = sum((y_pred == y) & (y == label))
-                accuracy_by_class[self.idx2label[label]] = correct / count
-            self.metrics["accuracy_by_class"].append(accuracy_by_class)
-
-            
+            report = classification_report(y, y_pred, output_dict=True)
+            self.metrics["per_class"].append(report)
             self.metrics["accuracy"].append(accuracy)
         except:
             pass
         self.model.partial_fit(X, y, classes=range(len(self.label2idx)))
         self.iters += 1
         
-        joblib.dump(self.model, f"{self.output_path}_{self.iters}.joblib")
+        joblib.dump(self.model, f"models/{self.output_path}_{self.iters}.joblib")
 
         return batch
         
