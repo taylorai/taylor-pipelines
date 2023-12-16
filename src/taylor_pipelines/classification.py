@@ -49,6 +49,8 @@ class TrainClassifier(Map):
         self.iters += 1
         
         joblib.dump(self.model, f"{self.output_path}_{self.iters}.joblib")
+
+        return batch
         
 
 class Classifier:
