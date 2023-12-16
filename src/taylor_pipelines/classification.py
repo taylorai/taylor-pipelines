@@ -42,7 +42,7 @@ class TrainClassifier(Map):
     def print_metrics(self):
         print(f"=== Classification Metrics for {self.name} ===")
         print(f"Accuracy on Last (Full) Batch: {self.metrics['accuracy'][-2]:.3f}")
-        for cls in self.idx2label:
+        for cls in self.label2idx:
             print(f"[Metrics for {cls}]")
             print(f"  ↳ Precision: {self.metrics['per_class'][-2][cls]['precision']:.3f}")
             print(f"  ↳ Recall: {self.metrics['per_class'][-2][cls]['recall']:.3f}")
