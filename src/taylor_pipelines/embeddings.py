@@ -201,7 +201,8 @@ class ONNXEmbeddingModel(EmbeddingModelBase):
                 repo_id=huggingface_repo,
                 filename=huggingface_path_in_repo
             )
-            shutil.move(local_path, local_onnx_path)   
+            shutil.copyfile(local_path, local_onnx_path, follow_symlinks=True)
+            os.remove(local_path)
         self.session = ort.InferenceSession(local_onnx_path, providers=self.providers)
 
     def embed(
