@@ -8,18 +8,16 @@ import concurrent.futures
 
 import abc
 import functools
-import json
 import json_tricks
 import jinja2
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from jinja2 import meta
 
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Optional
 
 from .argument import Argument
 from .embeddings import ONNXEmbeddingModel
-
 
 class Transform(abc.ABC):
     """
