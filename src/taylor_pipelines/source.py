@@ -316,6 +316,7 @@ class HuggingFace(Source):
 
         if self.hf_api_key:
             import huggingface_hub
+            print(f"Using provided token hf_xxxxxxxxxxxxx{self.hf_api_key[-16:]} to log into HuggingFace Hub.")
 
             huggingface_hub.login(token=self.hf_api_key)
 
@@ -324,6 +325,7 @@ class HuggingFace(Source):
             name=self.config_name,
             split=self.split,
             streaming=self.streaming,
+            token=self.hf_api_key,
         )
 
         if self.sample_rate < 1.0:
