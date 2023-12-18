@@ -18,6 +18,7 @@ from typing import Optional
 
 from .argument import Argument
 from .embeddings import ONNXEmbeddingModel
+from .utils import normalize_path
 
 class Transform(abc.ABC):
     """
@@ -543,14 +544,19 @@ class LocalEmbeddingMap(Map):
         self.input_field = input_field
         self.output_field = output_field
         self.normalize = normalize
-        self.model = ONNXEmbeddingModel(
-            local_onnx_path=local_onnx_path,
-            huggingface_repo=huggingface_repo,
-            huggingface_path_in_repo=huggingface_path_in_repo,
-            max_length=max_length,
-        )
+        self.local_onnx_path = local_onnx_path
+        self.huggingface_repo = huggingface_repo
+        self.huggingface_path_in_repo = huggingface_path_in_repo
+        self.max_length = max_length
+        self.model = None
 
     def compile(self, **kwargs):
+        ONNXEmbeddingModel(
+            local_onnx_path=self.local_onnx_path,
+            huggingface_repo=self.huggingface_repo,
+            huggingface_path_in_repo=self.huggingface_path_in_repo,
+            max_length=self.max_length,
+        )
         self.compiled = True
 
     async def map(
@@ -648,7 +654,10 @@ class JSONLSink(Sink):
         self.set_arguments(**kwargs)  # have to do this to check no extras provided
         # if output_directory is not None, prepend to output file and make sure the directories exist
         if self.output_directory is not None:
-            self.output_file = os.path.join(self.output_directory, self.output_file)
+            self.output_file = os.path.join(
+                self.output_directory, 
+                normalize_path(self.output_file) # prevent escaping the output directory
+            )
             os.makedirs(os.path.dirname(self.output_file), exist_ok=True)
         print("Output file for JSONL Sink:", self.output_file)
         self.compiled = True
