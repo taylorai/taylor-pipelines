@@ -70,7 +70,9 @@ class TrainClassifier(Map):
         self.iters += 1
         
         output_file = f"{self.output_directory}/{self.name}_model.joblib"
-        os.makedirs(self.output_directory, exist_ok=True)
+        # check if output director exists (it's NFS so if we don't check, os.makedirs will fail)
+        if not os.path.exists(self.output_directory):
+            os.makedirs(self.output_directory)
         # each iteration will overwrite the previous model
         joblib.dump({
             "model": self.model, 
