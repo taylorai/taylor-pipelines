@@ -294,7 +294,7 @@ class HuggingFace(Source):
     dataset_name: str
     split: str
     config_name: Optional[str] = None
-    streaming: bool = True
+    streaming: bool = False
     sample_rate: float = 1.0
     hf_api_key: Optional[str] = None
     parser: Parser = None
@@ -357,3 +357,38 @@ class HuggingFace(Source):
         for item in self:
             yield item
             await asyncio.sleep(0.01)
+
+    def to_dict(self):
+        """
+        Returns a dict/serializable representation of the source.
+        """
+        return {
+            "type": "HuggingFace",
+            "dataset_name": self.dataset_name,
+            "split": self.split,
+            "config_name": self.config_name,
+            "streaming": self.streaming,
+            "sample_rate": self.sample_rate,
+            "hf_api_key": self.hf_api_key,
+        }
+    
+    def to_json_string(self):
+        """
+        Returns a JSON string representation of the source.
+        """
+        return json.dumps(self.to_dict())
+    
+    @classmethod
+    def from_dict(cls, d):
+        """
+        Returns a HuggingFace source from a dict.
+        """
+        return cls(**d)
+    
+    @classmethod
+    def from_json_string(cls, json_string):
+        """
+        Returns a HuggingFace source from a JSON string.
+        """
+        return cls.from_dict(json.loads(json_string))
+
