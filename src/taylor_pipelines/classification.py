@@ -24,7 +24,7 @@ class TrainClassifier(Map):
         label_field: str, # should be string or int
         labels: list[Union[str, int]],
         model: Literal["passive_aggressive", "logistic_regression", "mlp"] = "passive_aggressive",
-        output_path: Optional[str] = None, # will use name if not provided
+        output_directory: Optional[str] = None, # will use name if not provided
         optional: bool = False,
     ):
         super().__init__(
@@ -32,17 +32,14 @@ class TrainClassifier(Map):
             description=f"Train a classifier to predict {label_field} from {input_field}.",
             optional=optional
         )
+        self.output_directory = output_directory
         self.label2idx = {label: i for i, label in enumerate(labels)}
         self.idx2label = {i: label for i, label in enumerate(labels)}
         self.input_field = input_field
         self.label_field = label_field
         self.model = NAME_TO_MODEL[model]()
-        self.output_path = output_path or f"models/{name}"
         self.iters = 0
         self.metrics = {"accuracy": [], "per_class": []}
-
-        if not os.path.exists("models"):
-            os.mkdir("models")
 
     def compile(self, **kwargs):
         self.compiled = True
@@ -72,10 +69,13 @@ class TrainClassifier(Map):
         self.model.partial_fit(X, y, classes=range(len(self.label2idx)))
         self.iters += 1
         
+        output_file = f"{self.output_directory}/{self.name}_model.joblib"
+        os.makedirs(self.output_directory, exist_ok=True)
+        # each iteration will overwrite the previous model
         joblib.dump({
             "model": self.model, 
             "idx2label": self.idx2label,
-        }, f"models/{self.output_path}.joblib")
+        }, f"{output_file}")
 
         return batch      
 

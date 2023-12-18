@@ -47,3 +47,15 @@ def file_from_github(
         return local_path
     else:
         raise Exception(f"Failed to download file: {response.status_code} {response.reason}")
+
+def normalize_path(path: str):
+    """
+    Normalizes a path by expanding user and relative paths.
+    """
+    expanded_path = os.path.expanduser(path)
+    
+    # Convert to absolute path and normalize
+    absolute_path = os.path.abspath(expanded_path)
+    normalized_path = os.path.normpath(absolute_path)
+
+    return normalized_path

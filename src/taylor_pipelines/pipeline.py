@@ -10,6 +10,7 @@ from rich.status import Status
 import asyncio
 from .argument import Argument
 from .process import Transform, Filter, Map, Sink
+from .classification import TrainClassifier
 from .source import Source, S3, HuggingFace, Parser, JSONLParser, ParquetParser
 
 
@@ -127,7 +128,7 @@ class Pipeline:
                         print("Couldn't disable transform", transform.name)
 
         for transform in self.transforms:
-            if isinstance(transform, Sink):
+            if isinstance(transform, Sink) or isinstance(transform, TrainClassifier):
                 if self.output_directory:
                     transform.output_directory = self.output_directory
             if transform.name in arguments:
