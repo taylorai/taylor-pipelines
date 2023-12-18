@@ -316,7 +316,7 @@ class HuggingFace(Source):
 
         if self.hf_api_key:
             import huggingface_hub
-            print("Using provided token to log into HuggingFace Hub.")
+            print(f"Using provided token hf_xxxxxxxxxxxxx{self.hf_api_key[-16:]} to log into HuggingFace Hub.")
 
             huggingface_hub.login(token=self.hf_api_key)
 
