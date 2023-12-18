@@ -44,12 +44,6 @@ class Pipeline:
     queue: Optional[asyncio.Queue] = None
     semaphore: Optional[asyncio.Semaphore] = None
 
-    def __post_init__(self):
-        # it's annoying that you have to remember to do this in the script.
-        # let's just do it automatically here!
-        import dotenv
-        dotenv.load_dotenv()
-
     ## TODO: Add way to specify total maximum number of examples to process.
 
     def set_output_directory(self, output_directory: str):
