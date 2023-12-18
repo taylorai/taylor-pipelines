@@ -10,7 +10,7 @@ from rich.status import Status
 import asyncio
 from .argument import Argument
 from .process import Transform, Filter, Map, Sink
-from .source import Source, S3, Parser, JSONLParser, ParquetParser
+from .source import Source, S3, HuggingFace, Parser, JSONLParser, ParquetParser
 
 
 PARSERS = {"jsonl": JSONLParser, "parquet": ParquetParser, "csv": None}
@@ -51,6 +51,37 @@ class Pipeline:
         Sets the output directory for the pipeline.
         """
         self.output_directory = output_directory
+
+    def set_data_source(self, config_file: str):
+        """
+        Sets the data source using a local config file.
+        """
+        config = json.load(open(config_file))
+        if config["type"] == "S3":
+            # assume that secret access key and access key id are in environment variables
+            parser = PARSERS[config["file_type"]]()
+            self.source = S3(
+                bucket=config["bucket"],
+                prefix=config["prefix"],
+                access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                parser=parser,
+                compression=config["compression"],
+                sample_rate=config["sample_rate"],
+                sample_level=config["sample_level"],
+            )
+        elif config["type"] == "HuggingFace":
+            self.source = HuggingFace(
+                dataset_name=config["dataset_name"],
+                split=config["split"],
+                config_name=config.get("config_name", None),
+                sample_rate=config["sample_rate"],
+                hf_api_key=os.getenv("HUGGING_FACE_HUB_TOKEN", None),
+                streaming=config.get("streaming", False),
+            )
+        else:
+            raise ValueError(f"Unknown data source type {config['type']}")
+
 
     def set_s3_data_source(
         self,
