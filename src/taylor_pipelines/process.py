@@ -551,7 +551,7 @@ class LocalEmbeddingMap(Map):
         self.model = None
 
     def compile(self, **kwargs):
-        ONNXEmbeddingModel(
+        self.model = ONNXEmbeddingModel(
             local_onnx_path=self.local_onnx_path,
             huggingface_repo=self.huggingface_repo,
             huggingface_path_in_repo=self.huggingface_path_in_repo,
