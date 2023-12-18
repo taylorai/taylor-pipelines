@@ -11,7 +11,7 @@ import asyncio
 from .argument import Argument
 from .process import Transform, Filter, Map, Sink
 from .classification import TrainClassifier
-from .source import Source, S3, HuggingFace, Parser, JSONLParser, ParquetParser
+from .source import Source, S3, HuggingFace, LocalFile, Parser, JSONLParser, ParquetParser
 
 
 PARSERS = {"jsonl": JSONLParser, "parquet": ParquetParser, "csv": None}
@@ -79,6 +79,12 @@ class Pipeline:
                 sample_rate=config["sample_rate"],
                 hf_api_key=os.getenv("HUGGING_FACE_HUB_TOKEN", None),
                 streaming=config.get("streaming", False),
+            )
+        elif config["type"] == "Local":
+            self.source = LocalFile(
+                filename=config["filename"],
+                file_type=config["file_type"],
+                sample_rate=config["sample_rate"],
             )
         else:
             raise ValueError(f"Unknown data source type {config['type']}")

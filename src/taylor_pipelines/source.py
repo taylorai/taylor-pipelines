@@ -394,3 +394,44 @@ class HuggingFace(Source):
         """
         return cls.from_dict(json.loads(json_string))
 
+class LocalFile(Source):
+    """
+    A data source that loads a local file. Useful for testing, or if you want to
+    just provide an input file directly with your script(s) rather than connecting to
+    S3 or HuggingFace.
+    """
+    def __init__(
+        self,
+        filename: str,
+        file_type: Literal["jsonl", "parquet"] = "jsonl",
+        sample_rate: float = 1.0,
+    ):
+        self.filename = filename
+        self.parser = JSONLParser() if file_type == "jsonl" else ParquetParser()
+        self.sample_rate = sample_rate
+
+    def __str__(self):
+        result = f"📄 [Local File Source]: {self.filename}"
+        result += f"\n ↳ 📦 [Parser]: {self.parser}"
+        result += f"\n ↳ 📈 [Sampling]: {self.sample_rate * 100}%"
+        return result
+
+    def __iter__(self) -> Iterator[dict]:
+        """
+        Returns an iterator over parsed data.
+        """
+        with open(self.filename, "rb") as file:
+            for item in self.parser.parse(File(filename=self.filename, content=file.read())):
+                if self.sample_rate < 1.0:
+                    if random.random() > self.sample_rate:
+                        continue
+                yield item
+
+    async def __aiter__(self) -> AsyncIterator[dict]:
+        """
+        Returns an async iterator over files.
+        """
+        with open(self.filename, "r") as file:
+            for item in self:
+                yield item
+                await asyncio.sleep(0.01)
