@@ -103,6 +103,7 @@ class TrainClassifier(Map):
         return batch
     
     def complete_remaining_epochs(self):
+        print(f"=== Training {self.name} for {self.epochs - 1} more epochs ===")
         if self.epochs == 1:
             return
         for ep in range(self.epochs - 1):
