@@ -237,6 +237,9 @@ class Pipeline:
             await asyncio.gather(producer, consumer)
             await self.queue.join()
             await self.flush_sinks()
+        self.status.update("Finishing classifier training...")
+        with self.status:
+            self.finish_training()
         end_time = time.time()
         print(
             (
@@ -252,6 +255,14 @@ class Pipeline:
                 transform.print_metrics()
             elif hasattr(transform, "metrics"):
                 print(transform.name, transform.metrics)
+
+    def finish_training(self):
+        """
+        Finishes training for all classifiers.
+        """
+        for transform in self.transforms:
+            if isinstance(transform, TrainClassifier):
+                transform.complete_remaining_epochs()
 
     def __str__(self):
         result = "* === PIPELINE === *\n"
