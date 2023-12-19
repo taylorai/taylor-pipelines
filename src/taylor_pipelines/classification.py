@@ -48,7 +48,7 @@ class TrainClassifier(Map):
             kwargs["class_weight"] = {i:weight for i, weight in enumerate(weights)}
         elif balanced:
             kwargs["class_weight"] = "balanced"
-        self.model = NAME_TO_MODEL[model]()
+        self.model = NAME_TO_MODEL[model](**kwargs)
         self.iters = 0
         self.metrics = {"accuracy": [], "per_class": []}
         self.epochs = epochs
@@ -103,6 +103,7 @@ class TrainClassifier(Map):
         return batch
     
     def complete_remaining_epochs(self):
+        print(f"=== Training {self.name} for {self.epochs - 1} more epochs ===")
         if self.epochs == 1:
             return
         for ep in range(self.epochs - 1):
