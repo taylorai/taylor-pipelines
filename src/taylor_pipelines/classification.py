@@ -8,6 +8,7 @@ from sklearn.linear_model import PassiveAggressiveClassifier, SGDClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import classification_report
 from collections import Counter
+from .embeddings import ONNXEmbeddingModel
 import joblib
 
 NAME_TO_MODEL = {
@@ -23,6 +24,8 @@ class TrainClassifier(Map):
         input_field: str, # should be embeddings or list of floats
         label_field: str, # should be string or int
         labels: list[Union[str, int]],
+        weights: Optional[list[float]] = None,
+        balanced: bool = False,
         model: Literal["passive_aggressive", "logistic_regression", "mlp"] = "passive_aggressive",
         output_directory: Optional[str] = None, # will use name if not provided
         optional: bool = False,
@@ -32,11 +35,18 @@ class TrainClassifier(Map):
             description=f"Train a classifier to predict {label_field} from {input_field}.",
             optional=optional
         )
+        if model == "mlp" and (balanced or weights is not None):
+            raise ValueError("MLP does not support class weights.")
         self.output_directory = output_directory
         self.label2idx = {label: i for i, label in enumerate(labels)}
         self.idx2label = {i: label for i, label in enumerate(labels)}
         self.input_field = input_field
         self.label_field = label_field
+        kwargs = {}
+        if weights is not None:
+            kwargs["class_weight"] = {i:weight for i, weight in enumerate(weights)}
+        elif balanced:
+            kwargs["class_weight"] = "balanced"
         self.model = NAME_TO_MODEL[model]()
         self.iters = 0
         self.metrics = {"accuracy": [], "per_class": []}
@@ -107,4 +117,59 @@ class Classifier(Map):
         y_pred = self.model["model"].predict(X)
         for entry, label in zip(batch, y_pred):
             entry[self.label_field] = self.model["idx2label"][label]
+        return batch
+    
+
+class ClassifierWithEmbeddings(Map):
+    def __init__(
+        self,
+        name: str,
+        input_field: str, # should be embeddings or list of floats
+        label_field: str, # should be string or int
+        classifier_model_path: str,
+        local_onnx_path: str,
+        huggingface_repo: str = None,  # used for tokenizer, and model not found at local_onnx_path
+        huggingface_path_in_repo: Optional[str] = None,  # used if model not found at local_onnx_path
+        max_length=512,
+        normalize=True,
+        optional: bool = False,
+    ):
+        super().__init__(
+            name, 
+            description=f"Embed texts & inference a trained classifier to predict {label_field} from {input_field}.",
+            optional=optional
+        )
+        self.input_field = input_field
+        self.label_field = label_field
+        self.classifier_model_path = classifier_model_path
+        self.local_onnx_path = local_onnx_path
+        self.huggingface_repo = huggingface_repo
+        self.huggingface_path_in_repo = huggingface_path_in_repo
+        self.max_length = max_length
+        self.normalize = normalize
+        self.embeddings = None
+        self.classifier = None
+        
+    
+    def compile(self, **kwargs):
+        self.embeddings = ONNXEmbeddingModel(
+            local_onnx_path=self.local_onnx_path,
+            huggingface_repo=self.huggingface_repo,
+            huggingface_path_in_repo=self.huggingface_path_in_repo,
+            max_length=self.max_length,
+        )
+        self.classifier = joblib.load(self.classifier_model_path)
+        self.compiled = True
+
+    def infer_one(self, text: str):
+        embedding = self.embeddings.embed(text, normalize=self.normalize)
+        prediction = self.classifier["model"].predict([embedding])[0]
+        return self.classifier["idx2label"][prediction]
+    
+    async def map(self, batch: list[dict], executor: concurrent.futures.Executor):
+        X = [entry[self.input_field] for entry in batch]
+        X_emb = self.embeddings.embed_batch(X, normalize=self.normalize)
+        y_pred = self.classifier["model"].predict(X_emb)
+        for entry, label in zip(batch, y_pred):
+            entry[self.label_field] = self.classifier["idx2label"][label]
         return batch
