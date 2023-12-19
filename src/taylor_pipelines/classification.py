@@ -48,7 +48,7 @@ class TrainClassifier(Map):
             kwargs["class_weight"] = {i:weight for i, weight in enumerate(weights)}
         elif balanced:
             kwargs["class_weight"] = "balanced"
-        self.model = NAME_TO_MODEL[model]()
+        self.model = NAME_TO_MODEL[model](**kwargs)
         self.iters = 0
         self.metrics = {"accuracy": [], "per_class": []}
         self.epochs = epochs
