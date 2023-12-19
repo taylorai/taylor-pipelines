@@ -16,6 +16,9 @@ __pycache__/
 data/*
 local/*
 
+# models
+*.onnx
+
 # C extensions
 *.so
 

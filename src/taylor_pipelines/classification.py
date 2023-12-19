@@ -26,6 +26,7 @@ class TrainClassifier(Map):
         labels: list[Union[str, int]],
         weights: Optional[list[float]] = None,
         balanced: bool = False,
+        epochs: int = 1,
         model: Literal["passive_aggressive", "logistic_regression", "mlp"] = "passive_aggressive",
         output_directory: Optional[str] = None, # will use name if not provided
         optional: bool = False,
@@ -50,6 +51,9 @@ class TrainClassifier(Map):
         self.model = NAME_TO_MODEL[model]()
         self.iters = 0
         self.metrics = {"accuracy": [], "per_class": []}
+        self.epochs = epochs
+        self.data = {"X": [], "y": []}
+        self.batch_size = None
 
     def compile(self, **kwargs):
         self.compiled = True
@@ -64,6 +68,8 @@ class TrainClassifier(Map):
             print(f"  ↳ F1: {self.metrics['per_class'][-2][cls]['f1-score']:.3f}")
 
     async def map(self, batch: list[dict], executor: concurrent.futures.Executor):
+        if self.batch_size is None:
+            self.batch_size = len(batch)
         X = [entry[self.input_field] for entry in batch]
         y = [self.label2idx[entry[self.label_field]] for entry in batch]
         try:
@@ -78,6 +84,11 @@ class TrainClassifier(Map):
             pass
         self.model.partial_fit(X, y, classes=range(len(self.label2idx)))
         self.iters += 1
+
+        # save data if doing >1 epoch
+        if self.epochs > 1:
+            self.data["X"].extend(X)
+            self.data["y"].extend(y)
         
         output_file = f"{self.output_directory}/{self.name}_model.joblib"
         # check if output director exists (it's NFS so if we don't check, os.makedirs will fail)
@@ -89,7 +100,43 @@ class TrainClassifier(Map):
             "idx2label": self.idx2label,
         }, f"{output_file}")
 
-        return batch      
+        return batch
+    
+    def complete_remaining_epochs(self):
+        if self.epochs == 1:
+            return
+        for ep in range(self.epochs - 1):
+            # shuffle the data
+            idxs = np.arange(len(self.data["X"]))
+            np.random.shuffle(idxs)
+            X = [self.data["X"][i] for i in idxs]
+            y = [self.data["y"][i] for i in idxs]
+            # fit the model
+            for i in range(0, len(X), self.batch_size):
+                X_batch, y_batch = X[i:i+self.batch_size], y[i:i+self.batch_size]
+                try:
+                    y_pred = self.model.predict(X_batch)
+                    accuracy = sum(y_pred == y_batch) / len(y_batch)
+                    report = classification_report(y, y_pred, output_dict=True, zero_division=np.nan)
+                    self.metrics["per_class"].append({
+                        label: report[str(self.label2idx[label])] for label in self.label2idx
+                    })
+                    self.metrics["accuracy"].append(accuracy)
+                except:
+                    pass
+                self.model.partial_fit(X_batch, y_batch, classes=range(len(self.label2idx)))
+                self.iters += 1
+        # save the model
+        output_file = f"{self.output_directory}/{self.name}_model.joblib"
+        # check if output director exists (it's NFS so if we don't check, os.makedirs will fail)
+        if not os.path.exists(self.output_directory):
+            os.makedirs(self.output_directory)
+        # each iteration will overwrite the previous model
+        joblib.dump({
+            "model": self.model, 
+            "idx2label": self.idx2label,
+        }, f"{output_file}")
+
 
 class Classifier(Map):
     def __init__(
