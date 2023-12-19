@@ -123,7 +123,8 @@ class TrainClassifier(Map):
                         label: report[str(self.label2idx[label])] for label in self.label2idx
                     })
                     self.metrics["accuracy"].append(accuracy)
-                except:
+                except Exception as e:
+                    print("Error:", e)
                     pass
                 self.model.partial_fit(X_batch, y_batch, classes=range(len(self.label2idx)))
                 self.iters += 1
