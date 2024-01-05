@@ -127,9 +127,12 @@ class TrainClassifier(Map):
             self.data["y_train"].extend(y)
 
         # metrics on train data
-        accuracy, per_class = self.evaluate(X, y)
-        self.metrics["per_class"].append(per_class)
-        self.metrics["accuracy"].append(accuracy)
+        try:
+            accuracy, per_class = self.evaluate(X, y)
+            self.metrics["per_class"].append(per_class)
+            self.metrics["accuracy"].append(accuracy)
+        except:
+            print("Skipping metrics calculation; model hasn't been fit yet.")
 
         # fit the model
         self.model.partial_fit(X, y, classes=range(len(self.label2idx)))
