@@ -58,6 +58,7 @@ class TrainClassifier(Map):
             "val_accuracy": [],
             "val_per_class": [],
         }
+        self.validation_split = validation_split
         self.epochs = epochs
         self.data = {"X_train": [], "y_train": [], "X_val": [], "y_val": []}
         self.batch_size = None
@@ -71,14 +72,14 @@ class TrainClassifier(Map):
         # if multi-epoch, report validation metrics
         if self.epochs > 1:
             print("Validation accuracy for each epoch:")
-            print([round(acc, 2) for acc in self.val_accuracy])
-            print(f"Final validation accuracy: {self.val_accuracy[-1]:.3f}")
+            print([round(acc, 2) for acc in self.metrics["val_accuracy"]])
+            print(f"Final validation accuracy: {self.metrics['val_accuracy'][-1]:.3f}")
             
             for cls in self.label2idx:
                 print(f"[Final Val Metrics for {cls}]")
-                print(f"  ↳ Precision: {self.val_per_class[-1][cls]['precision']:.3f}")
-                print(f"  ↳ Recall: {self.val_per_class[-1][cls]['recall']:.3f}")
-                print(f"  ↳ F1: {self.val_per_class[-1][cls]['f1-score']:.3f}")
+                print(f"  ↳ Precision: {self.metrics['val_per_class'][-1][cls]['precision']:.3f}")
+                print(f"  ↳ Recall: {self.metrics['val_per_class'][-1][cls]['recall']:.3f}")
+                print(f"  ↳ F1: {self.metrics['val_per_class'][-1][cls]['f1-score']:.3f}")
 
         # otherwise, report metrics on last batch
         else:
