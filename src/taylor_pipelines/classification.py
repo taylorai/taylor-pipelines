@@ -104,6 +104,9 @@ class TrainClassifier(Map):
     
     def complete_remaining_epochs(self):
         print(f"=== Training {self.name} for {self.epochs - 1} more epochs ===")
+        # shape check
+        print("X shape: ", np.array(self.data["X"]).shape)
+        print("y shape: ", np.array(self.data["y"]).shape)
         if self.epochs == 1:
             return
         for ep in range(self.epochs - 1):
@@ -112,6 +115,9 @@ class TrainClassifier(Map):
             np.random.shuffle(idxs)
             X = [self.data["X"][i] for i in idxs]
             y = [self.data["y"][i] for i in idxs]
+            # another shape check
+            print("X shape: ", np.array(X).shape)
+            print("y shape: ", np.array(y).shape)
             # fit the model
             for i in range(0, len(X), self.batch_size):
                 X_batch, y_batch = X[i:i+self.batch_size], y[i:i+self.batch_size]
