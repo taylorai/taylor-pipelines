@@ -121,10 +121,13 @@ class TrainClassifier(Map):
             # fit the model
             for i in range(0, len(X), self.batch_size):
                 X_batch, y_batch = X[i:i+self.batch_size], y[i:i+self.batch_size]
+                # yet another shape check
+                print("X_batch shape: ", np.array(X_batch).shape)
+                print("y_batch shape: ", np.array(y_batch).shape)
                 try:
                     y_pred = self.model.predict(X_batch)
                     accuracy = sum(y_pred == y_batch) / len(y_batch)
-                    report = classification_report(y, y_pred, output_dict=True, zero_division=np.nan)
+                    report = classification_report(y_batch, y_pred, output_dict=True, zero_division=np.nan)
                     self.metrics["per_class"].append({
                         label: report[str(self.label2idx[label])] for label in self.label2idx
                     })
