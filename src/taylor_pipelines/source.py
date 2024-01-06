@@ -131,7 +131,7 @@ class S3(Source):
     compression: Literal["lz4", "zstd", None] = None
     sample_rate: float = 1.0
     sample_level: Literal["file", "instance"] = "file"
-    max_concurrent_downloads = 500
+    max_concurrent_downloads = 75
 
     # internal things
     prefixes: list[str] = field(init=False, default_factory=list)
