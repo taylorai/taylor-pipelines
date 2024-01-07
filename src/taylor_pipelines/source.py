@@ -343,7 +343,7 @@ class S3(Source):
                             executor.submit(self.download_chunk, client, obj['Key'], index, byte_range, chunk_queue, progress_bar)
                             progress_bar.total += 1
 
-                executor.shutdown(wait=True)
+            executor.shutdown(wait=True)
 
             # Process the downloaded chunks
             all_chunks = {}
