@@ -107,6 +107,13 @@ class Source(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def prepare(self):
+        """
+        Prepares the source for streaming.
+        """
+        raise NotImplementedError
+    
+    @abc.abstractmethod
     async def __aiter__(self) -> AsyncIterator[File]:
         """
         Returns an async iterator over files.
@@ -194,6 +201,7 @@ class S3(Source):
 
     async def paginate_and_fetch(self, client, prefix):
         paginator = client.get_paginator("list_objects_v2")
+        tasks = []
         async for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
             if not page.get("Contents", None):
                 print("No objects found.")
@@ -206,7 +214,12 @@ class S3(Source):
                     if normalized_hash(obj["Key"]) > self.sample_rate:
                         continue
                 object_size = obj["Size"]
-                await self.fetch_object(client, obj["Key"], object_size)
+                # await self.fetch_object(client, obj["Key"], object_size)
+                task = asyncio.create_task(
+                    self.fetch_object(client, obj["Key"], object_size)
+                )
+                tasks.append(task)
+        await asyncio.gather(*tasks)
 
     async def fetch_chunk(self, client, key, index, byte_range):
         # fetch without decompressing (you can only decompress the entire file)
@@ -243,14 +256,15 @@ class S3(Source):
             decompressed_data = self.decompress(b"".join(chunks))
             await self.queue.put(File(filename=key, content=decompressed_data))
 
-    async def __aiter__(self) -> AsyncIterator[File]:
+    async def prepare(self):
         """
-        Returns an iterator over S3 objects.
+        Prepares the source for streaming.
+        In this case, we download the files from S3 and put them in a queue.
         """
-        self.queue = asyncio.Queue()
         self.semaphore = asyncio.Semaphore(
             self.max_concurrent_downloads
-        )  # limit to 100 concurrent requests
+        )  # limit to self.max_concurrent_downloads concurrent requests
+        self.queue = asyncio.Queue()
         async with self.session.create_client(
             "s3",
             aws_access_key_id=self.access_key_id,
@@ -261,28 +275,27 @@ class S3(Source):
                 for prefix in self.prefixes
             ]
             producer = asyncio.gather(*tasks)
+        
+        await producer
+        print("Done streaming files from S3.")
 
-            def done_callback(future):
-                print("Done streaming files from S3.")
-                self.queue.put_nowait(None)
-
-            producer.add_done_callback(done_callback)
-
-            while True:
-                file = await self.queue.get()
-                if file is None:
-                    self.queue.task_done()
-                    break
-                for item in self.parser.parse(file):
-                    if self.sample_rate < 1.0 and self.sample_level == "instance":
-                        # if normalized_hash(str(item)) > self.sample_rate:
-                        if random.random() > self.sample_rate:
-                            continue
-                    yield item
+    async def __aiter__(self) -> AsyncIterator[File]:
+        """
+        Returns an iterator over S3 objects.
+        """
+        while True:
+            file = await self.queue.get()
+            if file is None:
                 self.queue.task_done()
-
-            await producer
-            await self.queue.join()
+                break
+            for item in self.parser.parse(file):
+                if self.sample_rate < 1.0 and self.sample_level == "instance":
+                    # if normalized_hash(str(item)) > self.sample_rate:
+                    if random.random() > self.sample_rate:
+                        continue
+                yield item
+            self.queue.task_done()
+        await self.queue.join()
 
 
 @dataclass
@@ -307,6 +320,9 @@ class HuggingFace(Source):
         result += f"\n ↳ 📦 [Parser]: {self.parser}"
         result += f"\n ↳ 📈 [Sampling]: {self.sample_rate * 100}% of examples"
         return result
+
+    def prepare(self):
+        pass
 
     def __iter__(self) -> Iterator[dict]:
         """

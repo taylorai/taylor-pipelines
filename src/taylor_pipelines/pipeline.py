@@ -45,8 +45,6 @@ class Pipeline:
     queue: Optional[asyncio.Queue] = None
     semaphore: Optional[asyncio.Semaphore] = None
 
-    ## TODO: Add way to specify total maximum number of examples to process.
-
     def set_output_directory(self, output_directory: str):
         """
         Sets the output directory for the pipeline.
