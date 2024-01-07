@@ -239,8 +239,7 @@ class S3(Source):
                 response = await client.get_object(Bucket=self.bucket, Key=key)
                 async with response["Body"] as stream:
                     data = await stream.read()
-                    decompressed_data = self.decompress(data)
-                    await self.queue.put(File(filename=key, content=decompressed_data))
+                    await self.queue.put(File(filename=key, content=data))
         # otherwise use Range requests to fetch it in chunks concurrently
         else:
             print("Fetching large file in chunks.")
@@ -253,8 +252,8 @@ class S3(Source):
                 for idx, br in enumerate(byte_ranges)
             ]
             chunks = await asyncio.gather(*tasks)
-            decompressed_data = self.decompress(b"".join(chunks))
-            await self.queue.put(File(filename=key, content=decompressed_data))
+            data = b"".join(chunks)
+            await self.queue.put(File(filename=key, content=data))
 
     async def prepare(self):
         """
@@ -284,6 +283,7 @@ class S3(Source):
         """
         while True:
             file = await self.queue.get()
+            file.data = self.decompress(file.data)
             if file is None:
                 self.queue.task_done()
                 break
