@@ -1,13 +1,20 @@
 import abc
 import os
+import queue
 import requests
+import tqdm
 from io import BytesIO
 import random
 import json
 import numpy as np
 import pandas as pd
 import re
+import boto3
+from botocore.config import Config
+import botocore
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import tempfile
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional
@@ -138,13 +145,14 @@ class S3(Source):
     compression: Literal["lz4", "zstd", None] = None
     sample_rate: float = 1.0
     sample_level: Literal["file", "instance"] = "file"
-    max_concurrent_downloads = 75
+    max_concurrent_downloads = 150
 
     # internal things
     prefixes: list[str] = field(init=False, default_factory=list)
     session: AioSession = field(init=False)
-    queue: Optional[asyncio.Queue] = None
-    semaphore: Optional[asyncio.Semaphore] = None
+    # queue: Optional[asyncio.Queue] = None
+    # semaphore: Optional[asyncio.Semaphore] = None
+    data: list[dict] = field(default_factory=list)
 
     def __post_init__(self):
         self.session = get_session()
@@ -185,6 +193,28 @@ class S3(Source):
         # compression
         result += f"\n ↳ 🗜 [Compression]: {self.compression}"
         return result
+    
+    # def download_file(self, client, obj_key, temp_dir, file_queue):
+    #     try:
+    #         local_filename = os.path.join(temp_dir, obj_key.replace('/', '_'))
+    #         client.download_file(self.bucket, obj_key, local_filename)
+    #         print(f"Downloaded {obj_key} to {local_filename}")
+    #         file_queue.put(local_filename)
+    #     except botocore.exceptions.ClientError as e:
+    #         print(f"Error downloading {obj_key}: {e}")
+    #         return None
+        
+    def download_chunk(self, client, key, index, byte_range, chunk_queue, pbar=None):
+        try:
+            response = client.get_object(Bucket=self.bucket, Key=key, Range=byte_range)
+            data = response['Body'].read()
+            # print(f"Fetched chunk {index} of {key}.")
+            # Add metadata along with the data to the queue
+            chunk_queue.put({'key': key, 'index': index, 'data': data})
+            if pbar is not None:
+                pbar.update(1)
+        except botocore.exceptions.ClientError as e:
+            print(f"Error fetching chunk {index} of {key}: {e}")
 
     def decompress(self, obj: Any) -> Any:
         """
@@ -199,38 +229,38 @@ class S3(Source):
         else:
             raise ValueError(f"Unknown compression {self.compression}")
 
-    async def paginate_and_fetch(self, client, prefix):
-        paginator = client.get_paginator("list_objects_v2")
-        tasks = []
-        async for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
-            if not page.get("Contents", None):
-                print("No objects found.")
-                continue
-            for obj in page["Contents"]:
-                # skip directories
-                if obj["Key"].endswith("/"):
-                    continue
-                if self.sample_rate < 1.0 and self.sample_level == "file":
-                    if normalized_hash(obj["Key"]) > self.sample_rate:
-                        continue
-                object_size = obj["Size"]
-                # await self.fetch_object(client, obj["Key"], object_size)
-                task = asyncio.create_task(
-                    self.fetch_object(client, obj["Key"], object_size)
-                )
-                tasks.append(task)
-        await asyncio.gather(*tasks)
+    # async def paginate_and_fetch(self, client, prefix):
+    #     paginator = client.get_paginator("list_objects_v2")
+    #     tasks = []
+    #     async for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+    #         if not page.get("Contents", None):
+    #             print("No objects found.")
+    #             continue
+    #         for obj in page["Contents"]:
+    #             # skip directories
+    #             if obj["Key"].endswith("/"):
+    #                 continue
+    #             if self.sample_rate < 1.0 and self.sample_level == "file":
+    #                 if normalized_hash(obj["Key"]) > self.sample_rate:
+    #                     continue
+    #             object_size = obj["Size"]
+    #             # await self.fetch_object(client, obj["Key"], object_size)
+    #             task = asyncio.create_task(
+    #                 self.fetch_object(client, obj["Key"], object_size)
+    #             )
+    #             tasks.append(task)
+    #     await asyncio.gather(*tasks)
 
-    # async def fetch_chunk(self, client, key, index, byte_range):
-    #     # fetch without decompressing (you can only decompress the entire file)
-    #     async with self.semaphore:
-    #         response = await client.get_object(
-    #             Bucket=self.bucket, Key=key, Range=byte_range
-    #         )
-    #         async with response["Body"] as stream:
-    #             data = await stream.read()
-    #         print(f"Fetched chunk {index} of {key}.")
-    #         return data
+    async def fetch_chunk(self, client, key, index, byte_range):
+        # fetch without decompressing (you can only decompress the entire file)
+        async with self.semaphore:
+            response = await client.get_object(
+                Bucket=self.bucket, Key=key, Range=byte_range
+            )
+            async with response["Body"] as stream:
+                data = await stream.read()
+            print(f"Fetched chunk {index} of {key}.")
+            return data
 
     async def fetch_object(self, client, key, size):
         # if size is under 10MB, just fetch it directly
@@ -254,46 +284,98 @@ class S3(Source):
             # data = b"".join(chunks)
             # await self.queue.put(File(filename=key, content=data))
 
-    async def prepare(self):
-        """
-        Prepares the source for streaming.
-        In this case, we download the files from S3 and put them in a queue.
-        """
-        self.semaphore = asyncio.Semaphore(
-            self.max_concurrent_downloads
-        )  # limit to self.max_concurrent_downloads concurrent requests
-        self.queue = asyncio.Queue()
-        async with self.session.create_client(
-            "s3",
+    # async def prepare(self):
+    #     """
+    #     Prepares the source for streaming.
+    #     In this case, we download the files from S3 and put them in a queue.
+    #     """
+    #     self.semaphore = asyncio.Semaphore(
+    #         self.max_concurrent_downloads
+    #     )  # limit to self.max_concurrent_downloads concurrent requests
+    #     self.queue = asyncio.Queue()
+    #     async with self.session.create_client(
+    #         "s3",
+    #         aws_access_key_id=self.access_key_id,
+    #         aws_secret_access_key=self.secret_access_key,
+    #     ) as client:
+    #         tasks = [
+    #             asyncio.create_task(self.paginate_and_fetch(client, prefix))
+    #             for prefix in self.prefixes
+    #         ]
+    #         producer = asyncio.gather(*tasks)
+    #         await producer
+    #     print("Done streaming files from S3.")
+    def prepare(self):
+        # Create a custom configuration
+        custom_config = Config(
+            max_pool_connections=self.max_concurrent_downloads  # Adjust this number based on your needs
+        )
+        session = boto3.Session(
             aws_access_key_id=self.access_key_id,
-            aws_secret_access_key=self.secret_access_key,
-        ) as client:
-            tasks = [
-                asyncio.create_task(self.paginate_and_fetch(client, prefix))
-                for prefix in self.prefixes
-            ]
-            producer = asyncio.gather(*tasks)
-            await producer
-        print("Done streaming files from S3.")
+            aws_secret_access_key=self.secret_access_key
+        )
+        client = session.client('s3', config=custom_config)
+
+        with (
+            tempfile.TemporaryDirectory() as temp_dir, 
+            ThreadPoolExecutor(max_workers=self.max_concurrent_downloads) as executor,
+            tqdm.tqdm(total=0, desc="Downloading files") as progress_bar
+        ):
+            chunk_queue = queue.Queue()
+
+            for prefix in self.prefixes:
+                paginator = client.get_paginator('list_objects_v2')
+                for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+                    if not page.get('Contents', None):
+                        print("No objects found.")
+                        continue
+                    for obj in page['Contents']:
+                        if obj['Key'].endswith('/'):
+                            continue
+                        if self.sample_rate < 1.0 and self.sample_level == 'file':
+                            if normalized_hash(obj['Key']) > self.sample_rate:
+                                continue
+                        size = obj['Size']
+                        # Define chunk size and create byte ranges for each chunk
+                        chunk_size = 3_000_000  # Adjust as needed
+                        byte_ranges = [f"bytes={i}-{i+chunk_size-1}" for i in range(0, size, chunk_size)]
+                        for index, byte_range in enumerate(byte_ranges):
+                            executor.submit(self.download_chunk, client, obj['Key'], index, byte_range, chunk_queue, progress_bar)
+                            progress_bar.total += 1
+
+                executor.shutdown(wait=True)
+
+            # Process the downloaded chunks
+            all_chunks = {}
+            while not chunk_queue.empty():
+                chunk_info = chunk_queue.get()
+                key = chunk_info['key']
+                if key not in all_chunks:
+                    all_chunks[key] = []
+                all_chunks[key].append((chunk_info['index'], chunk_info['data']))
+
+            # Reassemble files from chunks
+            for key, chunks in all_chunks.items():
+                chunks.sort(key=lambda x: x[0])  # Sort chunks by index
+                file_data = b''.join(chunk_data for _, chunk_data in chunks)
+                decompressed = self.decompress(file_data)
+                parsed = self.parser.parse(File(filename=key, content=decompressed))
+                for item in parsed:
+                        if self.sample_rate < 1.0 and self.sample_level == "instance":
+                            if random.random() > self.sample_rate:
+                                continue
+                        self.data.append(item)
+
+        print("Done downloading files from S3.")
 
     async def __aiter__(self) -> AsyncIterator[File]:
         """
         Returns an iterator over S3 objects.
         """
-        while True:
-            file = await self.queue.get()
-            file.data = self.decompress(file.data)
-            if file is None:
-                self.queue.task_done()
-                break
-            for item in self.parser.parse(file):
-                if self.sample_rate < 1.0 and self.sample_level == "instance":
-                    # if normalized_hash(str(item)) > self.sample_rate:
-                    if random.random() > self.sample_rate:
-                        continue
-                yield item
-            self.queue.task_done()
-        await self.queue.join()
+        for item in self.data:
+            yield item
+            await asyncio.sleep(0.01)
+        
 
 
 @dataclass
