@@ -332,7 +332,7 @@ class S3(Source):
                             continue
                     n_objects_to_download += 1
                     size = obj['Size']
-                    byte_ranges = [f"bytes={i}-{i+chunk_size-1}" for i in range(0, size, chunk_size)]
+                    byte_ranges = [f"bytes={i}-{min(i + chunk_size - 1, size - 1)}" for i in range(0, size, chunk_size)]
                     for index, byte_range in enumerate(byte_ranges):
                         chunks_to_download.append({'key': obj['Key'], 'index': index, 'byte_range': byte_range})
         print(f"Found {len(chunks_to_download)} chunks to download ({n_objects_to_download} objects).")
