@@ -161,28 +161,31 @@ class S3(Source):
             self.prefix = ""
             self.prefixes = [""]
 
-        # search for any glob characters: [], *, **, ?
-        elif re.search(r"[\*\?\[\]]", self.prefix):
-            print("Prefix contains glob characters, using s3fs to expand.")
-            import s3fs
-
-            fs = s3fs.S3FileSystem(
-                key=self.access_key_id, secret=self.secret_access_key
-            )
-            glob_str = self.bucket.rstrip("/") + "/" + self.prefix.lstrip("/")
-            prefixes = fs.glob(glob_str)
-            # if glob includes trailing /, add it to each prefix so they also only match directories
-            if glob_str.endswith("/"):
-                prefixes = [p + "/" for p in prefixes]
-            # split out the bucket name
-            self.prefixes = [p.split("/", 1)[1] for p in prefixes]
-            print("Found", len(self.prefixes), "prefixes.")
-            if len(self.prefixes) < 10:
-                print("Prefixes:", self.prefixes)
-
         else:
-            print("Prefix does not contain glob characters, so we're not expanding.")
-            self.prefixes = [self.prefix]
+            # strip * from the end, as this leads to huge inefficiency, 1 prefix per file
+            self.prefix = self.prefix.rstrip("*")
+            # search for any glob characters: [], *, **, ?
+            if re.search(r"[\*\?\[\]]", self.prefix):
+                print("Prefix contains glob characters, using s3fs to expand.")
+                import s3fs
+
+                fs = s3fs.S3FileSystem(
+                    key=self.access_key_id, secret=self.secret_access_key
+                )
+                glob_str = self.bucket.rstrip("/") + "/" + self.prefix.lstrip("/")
+                prefixes = fs.glob(glob_str)
+                # if glob includes trailing /, add it to each prefix so they also only match directories
+                if glob_str.endswith("/"):
+                    prefixes = [p + "/" for p in prefixes]
+                # split out the bucket name
+                self.prefixes = [p.split("/", 1)[1] for p in prefixes]
+                print("Found", len(self.prefixes), "prefixes.")
+                if len(self.prefixes) < 10:
+                    print("Prefixes:", self.prefixes)
+
+            else:
+                print("Prefix does not contain glob characters, so we're not expanding.")
+                self.prefixes = [self.prefix]
 
     def __str__(self):
         result = f"🪣 [S3 Source]: s3://{self.bucket}{('/' + self.prefix) if self.prefix else ''}"
