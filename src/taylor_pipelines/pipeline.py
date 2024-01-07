@@ -45,8 +45,6 @@ class Pipeline:
     queue: Optional[asyncio.Queue] = None
     semaphore: Optional[asyncio.Semaphore] = None
 
-    ## TODO: Add way to specify total maximum number of examples to process.
-
     def set_output_directory(self, output_directory: str):
         """
         Sets the output directory for the pipeline.
@@ -225,9 +223,11 @@ class Pipeline:
         print()
         print(self)
         if not self.compiled:
-                print("Compiling transforms...")
-                self.compile_transforms(arguments)
+            print("Compiling transforms...")
+            self.compile_transforms(arguments)
+        print("Running pipeline...")
         start_time = time.time()
+        self.source.prepare()
         self.queue = asyncio.Queue()
         self.semaphore = asyncio.Semaphore(self.max_concurrent_batches)
         self.status = Status("Beginning to process data...")
