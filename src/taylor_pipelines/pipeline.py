@@ -227,7 +227,7 @@ class Pipeline:
             self.compile_transforms(arguments)
         print("Running pipeline...")
         start_time = time.time()
-        self.source.prepare()
+        await self.source.prepare()
         self.queue = asyncio.Queue()
         self.semaphore = asyncio.Semaphore(self.max_concurrent_batches)
         self.status = Status("Beginning to process data...")
