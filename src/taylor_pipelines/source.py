@@ -315,56 +315,58 @@ class S3(Source):
             aws_secret_access_key=self.secret_access_key
         )
         client = session.client('s3', config=custom_config)
+        chunk_size = 3_000_000  # Adjust as needed
+        chunks_to_download = []
+        n_objects_to_download = 0
+        for prefix in self.prefixes:
+            paginator = client.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+                if not page.get('Contents', None):
+                    print("No objects found.")
+                    continue
+                for obj in page['Contents']:
+                    if obj['Key'].endswith('/'):
+                        continue
+                    if self.sample_rate < 1.0 and self.sample_level == 'file':
+                        if normalized_hash(obj['Key']) > self.sample_rate:
+                            continue
+                    n_objects_to_download += 1
+                    size = obj['Size']
+                    byte_ranges = [f"bytes={i}-{i+chunk_size-1}" for i in range(0, size, chunk_size)]
+                    for index, byte_range in enumerate(byte_ranges):
+                        chunks_to_download.append({'key': obj['Key'], 'index': index, 'byte_range': byte_range})
+        print(f"Found {len(chunks_to_download)} chunks to download ({n_objects_to_download} objects).")
 
         with (
-            tempfile.TemporaryDirectory() as temp_dir, 
             ThreadPoolExecutor(max_workers=self.max_concurrent_downloads) as executor,
-            tqdm.tqdm(total=0, desc="Downloading files") as progress_bar
+            tqdm.tqdm(total=len(chunks_to_download), desc="Downloading files") as progress_bar
         ):
             chunk_queue = queue.Queue()
-
-            for prefix in self.prefixes:
-                paginator = client.get_paginator('list_objects_v2')
-                for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
-                    if not page.get('Contents', None):
-                        print("No objects found.")
-                        continue
-                    for obj in page['Contents']:
-                        if obj['Key'].endswith('/'):
-                            continue
-                        if self.sample_rate < 1.0 and self.sample_level == 'file':
-                            if normalized_hash(obj['Key']) > self.sample_rate:
-                                continue
-                        size = obj['Size']
-                        # Define chunk size and create byte ranges for each chunk
-                        chunk_size = 3_000_000  # Adjust as needed
-                        byte_ranges = [f"bytes={i}-{i+chunk_size-1}" for i in range(0, size, chunk_size)]
-                        for index, byte_range in enumerate(byte_ranges):
-                            executor.submit(self.download_chunk, client, obj['Key'], index, byte_range, chunk_queue, progress_bar)
-                            progress_bar.total += 1
-
+            for chunk in chunks_to_download:
+                executor.submit(self.download_chunk, client, chunk['key'], chunk['index'], chunk['byte_range'], progress_bar)
             executor.shutdown(wait=True)
+            
 
-            # Process the downloaded chunks
-            all_chunks = {}
-            while not chunk_queue.empty():
-                chunk_info = chunk_queue.get()
-                key = chunk_info['key']
-                if key not in all_chunks:
-                    all_chunks[key] = []
-                all_chunks[key].append((chunk_info['index'], chunk_info['data']))
+        # Process the downloaded chunks
+        all_chunks = {}
+        while not chunk_queue.empty():
+            chunk_info = chunk_queue.get()
+            key = chunk_info['key']
+            if key not in all_chunks:
+                all_chunks[key] = []
+            all_chunks[key].append((chunk_info['index'], chunk_info['data']))
 
-            # Reassemble files from chunks
-            for key, chunks in all_chunks.items():
-                chunks.sort(key=lambda x: x[0])  # Sort chunks by index
-                file_data = b''.join(chunk_data for _, chunk_data in chunks)
-                decompressed = self.decompress(file_data)
-                parsed = self.parser.parse(File(filename=key, content=decompressed))
-                for item in parsed:
-                        if self.sample_rate < 1.0 and self.sample_level == "instance":
-                            if random.random() > self.sample_rate:
-                                continue
-                        self.data.append(item)
+        # Reassemble files from chunks
+        for key, chunks in all_chunks.items():
+            chunks.sort(key=lambda x: x[0])  # Sort chunks by index
+            file_data = b''.join(chunk_data for _, chunk_data in chunks)
+            decompressed = self.decompress(file_data)
+            parsed = self.parser.parse(File(filename=key, content=decompressed))
+            for item in parsed:
+                    if self.sample_rate < 1.0 and self.sample_level == "instance":
+                        if random.random() > self.sample_rate:
+                            continue
+                    self.data.append(item)
 
         print("Done downloading files from S3.")
 
