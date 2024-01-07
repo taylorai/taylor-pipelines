@@ -321,7 +321,7 @@ class HuggingFace(Source):
         result += f"\n ↳ 📈 [Sampling]: {self.sample_rate * 100}% of examples"
         return result
 
-    def prepare(self):
+    async def prepare(self):
         pass
 
     def __iter__(self) -> Iterator[dict]:
@@ -431,6 +431,9 @@ class LocalFile(Source):
         result += f"\n ↳ 📦 [Parser]: {self.parser}"
         result += f"\n ↳ 📈 [Sampling]: {self.sample_rate * 100}%"
         return result
+    
+    async def prepare(self):
+        pass
 
     def __iter__(self) -> Iterator[dict]:
         """
