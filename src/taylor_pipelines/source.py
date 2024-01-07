@@ -221,39 +221,38 @@ class S3(Source):
                 tasks.append(task)
         await asyncio.gather(*tasks)
 
-    async def fetch_chunk(self, client, key, index, byte_range):
-        # fetch without decompressing (you can only decompress the entire file)
-        async with self.semaphore:
-            response = await client.get_object(
-                Bucket=self.bucket, Key=key, Range=byte_range
-            )
-            async with response["Body"] as stream:
-                data = await stream.read()
-            print(f"Fetched chunk {index} of {key}.")
-            return data
+    # async def fetch_chunk(self, client, key, index, byte_range):
+    #     # fetch without decompressing (you can only decompress the entire file)
+    #     async with self.semaphore:
+    #         response = await client.get_object(
+    #             Bucket=self.bucket, Key=key, Range=byte_range
+    #         )
+    #         async with response["Body"] as stream:
+    #             data = await stream.read()
+    #         print(f"Fetched chunk {index} of {key}.")
+    #         return data
 
     async def fetch_object(self, client, key, size):
         # if size is under 10MB, just fetch it directly
-        if size < 10_000_000:
-            async with self.semaphore:
-                response = await client.get_object(Bucket=self.bucket, Key=key)
-                async with response["Body"] as stream:
-                    data = await stream.read()
-                    await self.queue.put(File(filename=key, content=data))
-        # otherwise use Range requests to fetch it in chunks concurrently
-        else:
-            print("Fetching large file in chunks.")
-            chunk_size = 3_000_000
-            byte_ranges = [
-                f"bytes={i}-{i+chunk_size-1}" for i in range(0, size, chunk_size)
-            ]
-            tasks = [
-                asyncio.create_task(self.fetch_chunk(client, key, idx, byte_range=br))
-                for idx, br in enumerate(byte_ranges)
-            ]
-            chunks = await asyncio.gather(*tasks)
-            data = b"".join(chunks)
+        # if size < 10_000_000:
+        response = await client.get_object(Bucket=self.bucket, Key=key)
+        async with response["Body"] as stream:
+            data = await stream.read()
             await self.queue.put(File(filename=key, content=data))
+        # otherwise use Range requests to fetch it in chunks concurrently
+        # else:
+            # print("Fetching large file in chunks.")
+            # chunk_size = 3_000_000
+            # byte_ranges = [
+            #     f"bytes={i}-{i+chunk_size-1}" for i in range(0, size, chunk_size)
+            # ]
+            # tasks = [
+            #     asyncio.create_task(self.fetch_chunk(client, key, idx, byte_range=br))
+            #     for idx, br in enumerate(byte_ranges)
+            # ]
+            # chunks = await asyncio.gather(*tasks)
+            # data = b"".join(chunks)
+            # await self.queue.put(File(filename=key, content=data))
 
     async def prepare(self):
         """
