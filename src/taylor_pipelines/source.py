@@ -275,8 +275,7 @@ class S3(Source):
                 for prefix in self.prefixes
             ]
             producer = asyncio.gather(*tasks)
-        
-        await producer
+            await producer
         print("Done streaming files from S3.")
 
     async def __aiter__(self) -> AsyncIterator[File]:
