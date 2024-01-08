@@ -655,10 +655,12 @@ class JSONLSink(Sink):
         # if output_directory is not None, prepend to output file and make sure the directories exist
         print(f"Provided output directory for sink {self.name} is {self.output_directory}")
         if self.output_directory is not None:
-            self.output_file = os.path.join(
+            new_output_file = os.path.join(
                 self.output_directory, 
                 normalize_path(self.output_file) # prevent escaping the output directory
             )
+            print(f"New output file for sink {self.name} is {new_output_file}")
+            self.output_file = new_output_file
             os.makedirs(os.path.dirname(self.output_file), exist_ok=True)
         print("Output file for JSONL Sink:", self.output_file)
         self.compiled = True
