@@ -132,6 +132,7 @@ class Pipeline:
                         self.remove_transform(transform.name)
                     except ValueError:
                         print("Couldn't disable transform", transform.name)
+            print("Remaining transforms:", [transform.name for transform in self.transforms])
 
         for transform in self.transforms:
             if isinstance(transform, Sink) or isinstance(transform, TrainClassifier):
