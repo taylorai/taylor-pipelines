@@ -252,6 +252,7 @@ class Pipeline:
             )
         )
         print("Output saved to", self.output_directory)
+        print(os.listdir(self.output_directory))
         for transform in self.transforms:
             if hasattr(transform, "print_metrics"):
                 print(f"{transform}")
