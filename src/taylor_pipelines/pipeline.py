@@ -123,7 +123,9 @@ class Pipeline:
         # gotta be a cleaner way but for now arguments has a key for each transform,
         # and under that key is a dict of argument names to values for that transform
         # also want "global" arguments that apply to all transforms
+        print("Compiling transforms: ", [transform.name for transform in self.transforms])
         if "__disabled__" in arguments:
+            print("Disabling transforms:", arguments["__disabled__"])
             for transform in self.transforms:
                 if transform.name in arguments["__disabled__"]:
                     try:
