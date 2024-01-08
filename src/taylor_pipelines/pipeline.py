@@ -251,6 +251,7 @@ class Pipeline:
                 f"in {end_time - start_time:.2f} seconds."
             )
         )
+        print("Output saved to", self.output_directory)
         for transform in self.transforms:
             if hasattr(transform, "print_metrics"):
                 print(f"{transform}")
