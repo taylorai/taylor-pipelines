@@ -346,7 +346,9 @@ class S3(Source):
         ):
             chunk_queue = queue.Queue()
             for chunk in chunks_to_download:
-                executor.submit(self.download_chunk, client, chunk['key'], chunk['index'], chunk['byte_range'], progress_bar)
+                executor.submit(
+                    self.download_chunk, client, chunk['key'], chunk['index'], chunk['byte_range'], chunk_queue, progress_bar
+                )
             executor.shutdown(wait=True)
             
 
@@ -358,7 +360,8 @@ class S3(Source):
             if key not in all_chunks:
                 all_chunks[key] = []
             all_chunks[key].append((chunk_info['index'], chunk_info['data']))
-
+        
+        print(f"Downloaded {len(all_chunks)} files from S3. Reassembling chunks...")
         # Reassemble files from chunks
         for key, chunks in all_chunks.items():
             chunks.sort(key=lambda x: x[0])  # Sort chunks by index
