@@ -653,6 +653,7 @@ class JSONLSink(Sink):
         """
         self.set_arguments(**kwargs)  # have to do this to check no extras provided
         # if output_directory is not None, prepend to output file and make sure the directories exist
+        print(f"Provided output directory for sink {self.name} is {self.output_directory}")
         if self.output_directory is not None:
             self.output_file = os.path.join(
                 self.output_directory, 
