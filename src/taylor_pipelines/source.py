@@ -366,12 +366,12 @@ class S3(Source):
             decompressed = self.decompress(file_data)
             parsed = self.parser.parse(File(filename=key, content=decompressed))
             for item in parsed:
-                    if self.sample_rate < 1.0 and self.sample_level == "instance":
-                        if random.random() > self.sample_rate:
-                            continue
-                    self.data.append(item)
+                if self.sample_rate < 1.0 and self.sample_level == "instance":
+                    if random.random() > self.sample_rate:
+                        continue
+                self.data.append(item)
 
-        print("Done downloading files from S3.")
+        print("Done downloading files from S3. Sampled", len(self.data), "items.")
 
     async def __aiter__(self) -> AsyncIterator[File]:
         """
