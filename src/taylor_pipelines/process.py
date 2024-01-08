@@ -657,7 +657,7 @@ class JSONLSink(Sink):
         if self.output_directory is not None:
             new_output_file = os.path.join(
                 self.output_directory, 
-                normalize_path(self.output_file) # prevent escaping the output directory
+                normalize_path(self.output_file)[1:] # prevent escaping the output directory
             )
             print(f"New output file for sink {self.name} is {new_output_file}")
             self.output_file = new_output_file
