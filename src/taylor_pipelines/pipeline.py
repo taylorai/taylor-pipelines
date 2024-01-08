@@ -125,13 +125,12 @@ class Pipeline:
         # also want "global" arguments that apply to all transforms
         print("Compiling transforms: ", [transform.name for transform in self.transforms])
         if "__disabled__" in arguments:
+            optional = {transform.name: transform.optional for transform in self.transforms}
             print("Disabling transforms:", arguments["__disabled__"])
-            for transform in self.transforms:
-                if transform.name in arguments["__disabled__"]:
-                    try:
-                        self.remove_transform(transform.name)
-                    except ValueError:
-                        print("Couldn't disable transform", transform.name)
+            for transform in arguments["__disabled__"]:
+                if not optional[transform]:
+                    raise ValueError(f"Transform {transform} is not optional and can't be disabled.")
+                self.transforms = [transform for transform in self.transforms if transform.name != transform]
             print("Remaining transforms:", [transform.name for transform in self.transforms])
 
         for transform in self.transforms:
@@ -145,17 +144,17 @@ class Pipeline:
 
         self.compiled = True
 
-    def remove_transform(self, transform_name: str):
-        """
-        Removes a transform from the pipeline.
-        """
-        for i, transform in enumerate(self.transforms):
-            if transform.name == transform_name:
-                if not transform.optional:
-                    raise ValueError(f"Transform {transform_name} is not optional.")
-                del self.transforms[i]
-                return
-        raise ValueError(f"Transform {transform_name} not found.")
+    # def remove_transform(self, transform_name: str):
+    #     """
+    #     Removes a transform from the pipeline.
+    #     """
+    #     for i, transform in enumerate(self.transforms):
+    #         if transform.name == transform_name:
+    #             if not transform.optional:
+    #                 raise ValueError(f"Transform {transform_name} is not optional.")
+    #             del self.transforms[i]
+    #             return
+    #     raise ValueError(f"Transform {transform_name} not found.")
 
     def update_status(self):
         """
