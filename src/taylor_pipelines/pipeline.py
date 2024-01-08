@@ -128,7 +128,7 @@ class Pipeline:
             optional = {transform.name: transform.optional for transform in self.transforms}
             print("Disabling transforms:", arguments["__disabled__"])
             for transform_to_disable in arguments["__disabled__"]:
-                if not optional[transform]:
+                if not optional[transform_to_disable]:
                     raise ValueError(f"Transform {transform} is not optional and can't be disabled.")
                 self.transforms = [t for t in self.transforms if t.name != transform_to_disable]
             print("Remaining transforms:", [transform.name for transform in self.transforms])
